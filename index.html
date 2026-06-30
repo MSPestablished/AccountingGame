@@ -1,0 +1,2641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AccountingQuest RPG — The Ledger Wars</title>
+<style>
+/* ============================================================
+   RESET & ROOT
+   ============================================================ */
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg-deep:#0a0a1a;
+  --bg-mid:#0d1127;
+  --bg-panel:#111830;
+  --bg-card:#141e35;
+  --accent-gold:#f0c040;
+  --accent-gold2:#e8a020;
+  --accent-blue:#4488ff;
+  --accent-cyan:#00d4ff;
+  --accent-green:#00e676;
+  --accent-red:#ff4444;
+  --accent-purple:#bb86fc;
+  --accent-orange:#ff9800;
+  --text-primary:#e8eaf6;
+  --text-secondary:#90a4ae;
+  --text-dim:#546e7a;
+  --border:#1e2d4a;
+  --border-glow:rgba(68,136,255,0.4);
+  --health-green:#4caf50;
+  --health-yellow:#ffc107;
+  --health-red:#f44336;
+  --shadow-blue:0 0 20px rgba(68,136,255,0.3);
+  --shadow-gold:0 0 20px rgba(240,192,64,0.4);
+  --shadow-red:0 0 20px rgba(255,68,68,0.4);
+}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg-deep);color:var(--text-primary);}
+
+/* ============================================================
+   CANVAS / WORLD LAYER
+   ============================================================ */
+#worldCanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;}
+
+/* ============================================================
+   MASTER UI WRAPPER
+   ============================================================ */
+#ui{position:fixed;top:0;left:0;width:100%;height:100%;z-index:10;pointer-events:none;}
+#ui>*{pointer-events:all;}
+
+/* ============================================================
+   SCREENS
+   ============================================================ */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;}
+.screen.active{display:flex;}
+
+/* ============================================================
+   TITLE SCREEN
+   ============================================================ */
+#titleScreen{background:linear-gradient(180deg,#0a0a1a 0%,#0d1127 60%,#0a0a1a 100%);z-index:50;}
+.title-logo{font-size:clamp(2rem,6vw,4.5rem);font-weight:900;letter-spacing:4px;
+  background:linear-gradient(135deg,#f0c040,#ff9800,#f0c040);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  text-shadow:none;animation:titlePulse 3s ease-in-out infinite;margin-bottom:8px;}
+@keyframes titlePulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.3);}}
+.title-sub{font-size:clamp(0.8rem,2vw,1.1rem);color:var(--accent-cyan);letter-spacing:6px;text-transform:uppercase;margin-bottom:40px;}
+.title-scene{width:min(500px,90vw);height:180px;position:relative;margin:20px auto;overflow:hidden;}
+.diff-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;width:min(440px,90vw);margin-bottom:30px;}
+.diff-card{background:var(--bg-card);border:2px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;
+  transition:all 0.3s;text-align:center;position:relative;overflow:hidden;}
+.diff-card::before{content:'';position:absolute;inset:0;opacity:0;transition:0.3s;}
+.diff-card.easy::before{background:rgba(0,230,118,0.1);}
+.diff-card.medium::before{background:rgba(255,152,0,0.1);}
+.diff-card.hard::before{background:rgba(255,68,68,0.1);}
+.diff-card.superhard::before{background:rgba(187,134,252,0.1);}
+.diff-card:hover::before,.diff-card.selected::before{opacity:1;}
+.diff-card.easy{border-color:#00e676;}
+.diff-card.medium{border-color:#ff9800;}
+.diff-card.hard{border-color:#ff4444;}
+.diff-card.superhard{border-color:#bb86fc;animation:superGlow 2s infinite;}
+@keyframes superGlow{0%,100%{box-shadow:0 0 10px rgba(187,134,252,0.3);}50%{box-shadow:0 0 30px rgba(187,134,252,0.8),0 0 60px rgba(187,134,252,0.4);}}
+.diff-card.selected{transform:scale(1.05);}
+.diff-card .diff-icon{font-size:2rem;margin-bottom:6px;}
+.diff-card .diff-name{font-size:1rem;font-weight:800;margin-bottom:4px;}
+.diff-card .diff-desc{font-size:0.7rem;color:var(--text-secondary);line-height:1.4;}
+.play-btn{padding:16px 60px;background:linear-gradient(135deg,#f0c040,#e8a020);border:none;border-radius:50px;
+  color:#0a0a1a;font-size:1.2rem;font-weight:900;cursor:pointer;letter-spacing:2px;
+  box-shadow:0 0 30px rgba(240,192,64,0.5);transition:all 0.3s;text-transform:uppercase;}
+.play-btn:hover{transform:translateY(-3px) scale(1.05);box-shadow:0 0 50px rgba(240,192,64,0.8);}
+
+/* ============================================================
+   HUD (always visible during gameplay)
+   ============================================================ */
+#hud{position:absolute;top:0;left:0;right:0;height:70px;
+  background:linear-gradient(180deg,rgba(10,10,26,0.98),rgba(10,10,26,0.8));
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0;padding:0 10px;z-index:20;}
+.hud-section{display:flex;align-items:center;gap:8px;padding:0 12px;border-right:1px solid var(--border);}
+.hud-section:last-child{border-right:none;margin-left:auto;}
+.hud-avatar{width:44px;height:44px;border-radius:50%;border:2px solid var(--accent-gold);
+  background:linear-gradient(135deg,#1a2a4a,#0d1a3a);display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
+.hud-bars{display:flex;flex-direction:column;gap:4px;min-width:100px;}
+.bar-row{display:flex;align-items:center;gap:6px;}
+.bar-label{font-size:0.6rem;color:var(--text-secondary);width:20px;text-transform:uppercase;}
+.bar-track{flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.5s ease;}
+.bar-fill.hp{background:linear-gradient(90deg,#4caf50,#8bc34a);}
+.bar-fill.mp{background:linear-gradient(90deg,#2196f3,#03a9f4);}
+.hud-stat{text-align:center;padding:0 8px;}
+.hud-stat .val{font-size:1.1rem;font-weight:800;color:var(--accent-gold);}
+.hud-stat .lbl{font-size:0.55rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;}
+.hud-phase{background:rgba(68,136,255,0.15);border:1px solid rgba(68,136,255,0.4);
+  border-radius:8px;padding:4px 12px;text-align:center;}
+.hud-phase .phase-name{font-size:0.75rem;font-weight:700;color:var(--accent-blue);}
+.hud-phase .phase-step{font-size:0.6rem;color:var(--text-secondary);}
+
+/* ============================================================
+   BOTTOM CYCLE TRACKER
+   ============================================================ */
+#cycleTracker{position:absolute;bottom:0;left:0;right:0;height:60px;
+  background:linear-gradient(0deg,rgba(10,10,26,0.98),rgba(10,10,26,0.8));
+  border-top:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:0;z-index:20;}
+.cycle-node{display:flex;flex-direction:column;align-items:center;gap:2px;padding:0 8px;position:relative;cursor:default;}
+.cycle-node::after{content:'→';position:absolute;right:-8px;top:50%;transform:translateY(-50%);
+  font-size:0.7rem;color:var(--text-dim);}
+.cycle-node:last-child::after{display:none;}
+.cycle-dot{width:32px;height:32px;border-radius:50%;border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:0.9rem;transition:all 0.5s;background:var(--bg-mid);}
+.cycle-dot.done{border-color:var(--accent-green);background:rgba(0,230,118,0.2);box-shadow:0 0 10px rgba(0,230,118,0.4);}
+.cycle-dot.active{border-color:var(--accent-gold);background:rgba(240,192,64,0.2);
+  box-shadow:0 0 15px rgba(240,192,64,0.6);animation:activePulse 1.5s infinite;}
+@keyframes activePulse{0%,100%{box-shadow:0 0 10px rgba(240,192,64,0.4);}50%{box-shadow:0 0 25px rgba(240,192,64,0.9);}}
+.cycle-lbl{font-size:0.45rem;color:var(--text-dim);text-align:center;max-width:50px;line-height:1.2;text-transform:uppercase;}
+.cycle-lbl.active-lbl{color:var(--accent-gold);}
+
+/* ============================================================
+   MAIN GAME AREA
+   ============================================================ */
+#gameArea{position:absolute;top:70px;bottom:60px;left:0;right:0;display:none;overflow:hidden;}
+#gameArea.active{display:block;}
+
+/* ============================================================
+   BATTLE SCENE
+   ============================================================ */
+#battleScene{width:100%;height:100%;position:relative;display:none;}
+#battleScene.active{display:block;}
+
+/* Ground */
+.battle-ground{position:absolute;bottom:0;left:0;right:0;height:120px;
+  background:linear-gradient(180deg,transparent,rgba(20,30,60,0.8));border-top:1px solid rgba(68,136,255,0.2);}
+
+/* Player */
+#playerChar{position:absolute;bottom:110px;left:8%;width:90px;height:120px;transition:all 0.3s;}
+/* Enemy (Transaction Boss) */
+#enemyChar{position:absolute;bottom:110px;right:8%;width:120px;height:150px;transition:all 0.3s;}
+
+/* HP Bars above characters */
+.char-hpbar{position:absolute;bottom:240px;width:140px;background:rgba(0,0,0,0.7);
+  border:1px solid var(--border);border-radius:8px;padding:6px 10px;text-align:center;}
+#playerHPBar{left:5%;}
+#enemyHPBar{right:5%;}
+.char-name{font-size:0.7rem;font-weight:700;color:var(--accent-gold);margin-bottom:4px;}
+.char-bar-track{width:100%;height:10px;background:rgba(255,255,255,0.1);border-radius:5px;overflow:hidden;margin-bottom:3px;}
+.char-bar-fill{height:100%;border-radius:5px;transition:width 0.5s ease;}
+.char-bar-fill.hp{background:linear-gradient(90deg,#f44336,#4caf50);}
+.char-bar-fill.ep{background:linear-gradient(90deg,#673ab7,#9c27b0);}
+.char-hp-text{font-size:0.65rem;color:var(--text-secondary);}
+
+/* VS Banner */
+.vs-banner{position:absolute;top:20px;left:50%;transform:translateX(-50%);
+  font-size:2rem;font-weight:900;color:var(--accent-red);text-shadow:var(--shadow-red);
+  animation:vsPulse 1s infinite;z-index:5;}
+@keyframes vsPulse{0%,100%{transform:translateX(-50%) scale(1);}50%{transform:translateX(-50%) scale(1.1);}}
+
+/* Action Log */
+#actionLog{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(380px,60%);
+  max-height:140px;overflow:hidden;z-index:10;}
+.log-entry{background:rgba(10,10,26,0.9);border:1px solid var(--border);border-radius:6px;
+  padding:6px 12px;margin-bottom:4px;font-size:0.75rem;line-height:1.4;
+  animation:logSlide 0.4s ease;border-left:3px solid var(--accent-blue);}
+.log-entry.positive{border-left-color:var(--accent-green);}
+.log-entry.negative{border-left-color:var(--accent-red);}
+.log-entry.neutral{border-left-color:var(--accent-gold);}
+@keyframes logSlide{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
+
+/* Damage Numbers */
+.dmg-float{position:absolute;font-size:1.5rem;font-weight:900;pointer-events:none;z-index:30;
+  animation:dmgFloat 1.2s ease-out forwards;}
+@keyframes dmgFloat{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-80px) scale(1.5);}}
+
+/* ============================================================
+   TRANSACTION PANEL (Event happens)
+   ============================================================ */
+#transactionPanel{position:absolute;top:70px;bottom:60px;left:0;right:0;
+  background:rgba(10,10,26,0.95);display:none;z-index:15;overflow-y:auto;padding:15px;}
+#transactionPanel.active{display:block;}
+
+/* ============================================================
+   JOURNAL PANEL
+   ============================================================ */
+#journalPanel{position:absolute;top:70px;bottom:60px;left:0;right:0;
+  background:rgba(10,10,26,0.95);display:none;z-index:15;overflow-y:auto;padding:15px;}
+#journalPanel.active{display:block;}
+
+/* ============================================================
+   LEDGER PANEL
+   ============================================================ */
+#ledgerPanel{position:absolute;top:70px;bottom:60px;left:0;right:0;
+  background:rgba(10,10,26,0.95);display:none;z-index:15;overflow-y:auto;padding:15px;}
+#ledgerPanel.active{display:block;}
+
+/* ============================================================
+   TRAIL MAP (Audit Trail visual)
+   ============================================================ */
+#trailPanel{position:absolute;top:70px;bottom:60px;left:0;right:0;
+  background:rgba(10,10,26,0.95);display:none;z-index:15;overflow-y:auto;padding:15px;}
+#trailPanel.active{display:block;}
+
+/* ============================================================
+   FINANCIAL STATEMENT PANEL
+   ============================================================ */
+#fsPanel{position:absolute;top:70px;bottom:60px;left:0;right:0;
+  background:rgba(10,10,26,0.95);display:none;z-index:15;overflow-y:auto;padding:15px;}
+#fsPanel.active{display:block;}
+
+/* ============================================================
+   SHARED PANEL STYLES
+   ============================================================ */
+.panel-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.panel-icon{font-size:2rem;}
+.panel-title{font-size:1.4rem;font-weight:800;color:var(--accent-gold);}
+.panel-subtitle{font-size:0.8rem;color:var(--text-secondary);margin-top:2px;}
+
+/* ============================================================
+   TRANSACTION CARDS
+   ============================================================ */
+.tx-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;
+  margin-bottom:12px;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;}
+.tx-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;}
+.tx-card.asset::before{background:var(--accent-green);}
+.tx-card.liability::before{background:var(--accent-red);}
+.tx-card.equity::before{background:var(--accent-purple);}
+.tx-card.revenue::before{background:var(--accent-blue);}
+.tx-card.expense::before{background:var(--accent-orange);}
+.tx-card:hover{border-color:var(--accent-gold);box-shadow:var(--shadow-gold);transform:translateX(4px);}
+.tx-card.selected{border-color:var(--accent-cyan);box-shadow:0 0 20px rgba(0,212,255,0.4);}
+.tx-card.locked{opacity:0.4;cursor:not-allowed;}
+.tx-card.locked:hover{transform:none;border-color:var(--border);box-shadow:none;}
+.tx-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.tx-id{background:rgba(240,192,64,0.2);color:var(--accent-gold);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;}
+.tx-amount{font-size:1.1rem;font-weight:800;color:var(--accent-green);}
+.tx-desc{font-size:0.85rem;color:var(--text-primary);margin-bottom:8px;line-height:1.5;}
+.tx-meta{display:flex;gap:8px;flex-wrap:wrap;}
+.tx-tag{padding:2px 8px;border-radius:4px;font-size:0.65rem;font-weight:600;}
+.tx-tag.date{background:rgba(68,136,255,0.2);color:var(--accent-blue);}
+.tx-tag.type{background:rgba(187,134,252,0.2);color:var(--accent-purple);}
+.tx-tag.doc{background:rgba(255,152,0,0.2);color:var(--accent-orange);}
+.tx-status{font-size:0.7rem;font-weight:700;}
+.tx-status.done{color:var(--accent-green);}
+.tx-status.pending{color:var(--accent-gold);}
+
+/* ============================================================
+   JOURNAL ENTRY BUILDER
+   ============================================================ */
+.je-builder{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;}
+.je-title{font-size:1rem;font-weight:700;color:var(--accent-cyan);margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.je-table{width:100%;border-collapse:collapse;}
+.je-table th{background:rgba(68,136,255,0.15);padding:10px 12px;text-align:left;font-size:0.75rem;
+  color:var(--accent-blue);border-bottom:2px solid rgba(68,136,255,0.3);text-transform:uppercase;letter-spacing:1px;}
+.je-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:middle;}
+.je-table tr:hover td{background:rgba(255,255,255,0.02);}
+.je-input{background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:6px;
+  padding:7px 10px;color:var(--text-primary);font-size:0.85rem;width:100%;transition:all 0.3s;}
+.je-input:focus{outline:none;border-color:var(--accent-blue);box-shadow:0 0 10px rgba(68,136,255,0.3);}
+.je-input option{background:var(--bg-deep);}
+.dr-row td{background:rgba(68,136,255,0.03);}
+.cr-row td{background:rgba(187,134,252,0.03);}
+.cr-indent{padding-left:30px!important;}
+.dr-badge{background:rgba(68,136,255,0.2);color:var(--accent-blue);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;}
+.cr-badge{background:rgba(187,134,252,0.2);color:var(--accent-purple);padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:700;}
+.je-balance{display:flex;justify-content:space-around;background:rgba(255,255,255,0.03);
+  border-radius:8px;padding:12px;margin-top:12px;border:1px solid var(--border);}
+.je-bal-item{text-align:center;}
+.je-bal-val{font-size:1.2rem;font-weight:800;}
+.je-bal-lbl{font-size:0.65rem;color:var(--text-secondary);text-transform:uppercase;}
+.je-submit{width:100%;padding:12px;background:linear-gradient(135deg,var(--accent-blue),#0066cc);
+  border:none;border-radius:8px;color:white;font-size:1rem;font-weight:700;cursor:pointer;
+  margin-top:12px;transition:all 0.3s;letter-spacing:1px;}
+.je-submit:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(68,136,255,0.4);}
+.je-submit:disabled{opacity:0.5;cursor:not-allowed;transform:none;}
+
+/* ============================================================
+   LEDGER T-ACCOUNTS
+   ============================================================ */
+.ledger-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px;}
+.t-account{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:all 0.5s;}
+.t-account.highlighted{border-color:var(--accent-gold);box-shadow:var(--shadow-gold);animation:highlightPulse 1s ease 3;}
+@keyframes highlightPulse{0%,100%{box-shadow:var(--shadow-gold);}50%{box-shadow:0 0 40px rgba(240,192,64,0.8);}}
+.t-header{background:rgba(240,192,64,0.15);padding:8px 12px;font-size:0.8rem;font-weight:700;
+  color:var(--accent-gold);border-bottom:1px solid rgba(240,192,64,0.2);display:flex;justify-content:space-between;}
+.t-body{display:flex;min-height:80px;}
+.t-side{flex:1;padding:8px;}
+.t-side-label{font-size:0.6rem;color:var(--text-dim);text-align:center;margin-bottom:4px;text-transform:uppercase;}
+.t-entry{font-size:0.75rem;padding:3px 4px;text-align:right;color:var(--text-primary);
+  border-radius:3px;margin-bottom:2px;animation:entryPop 0.4s ease;}
+@keyframes entryPop{from{opacity:0;background:rgba(240,192,64,0.3);}to{opacity:1;background:transparent;}}
+.t-divider{width:1px;background:rgba(255,255,255,0.08);}
+.t-balance{background:rgba(255,255,255,0.03);padding:6px 10px;font-size:0.75rem;
+  border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;}
+.t-bal-num{font-weight:700;color:var(--accent-cyan);}
+.account-type-badge{font-size:0.55rem;padding:1px 5px;border-radius:3px;font-weight:600;}
+.badge-asset{background:rgba(0,230,118,0.2);color:var(--accent-green);}
+.badge-liab{background:rgba(255,68,68,0.2);color:var(--accent-red);}
+.badge-equity{background:rgba(187,134,252,0.2);color:var(--accent-purple);}
+.badge-rev{background:rgba(68,136,255,0.2);color:var(--accent-blue);}
+.badge-exp{background:rgba(255,152,0,0.2);color:var(--accent-orange);}
+
+/* ============================================================
+   AUDIT TRAIL MAP
+   ============================================================ */
+.trail-container{padding:10px;}
+.trail-tx{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+  margin-bottom:20px;overflow:hidden;}
+.trail-tx-header{padding:12px 16px;background:rgba(240,192,64,0.1);border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;}
+.trail-tx-desc{font-size:0.9rem;font-weight:600;color:var(--text-primary);}
+.trail-tx-amt{font-size:1rem;font-weight:800;color:var(--accent-green);}
+.trail-path{display:flex;align-items:stretch;overflow-x:auto;padding:16px;gap:0;}
+.trail-node{min-width:150px;display:flex;flex-direction:column;align-items:center;}
+.trail-node-box{background:var(--bg-mid);border:2px solid var(--border);border-radius:10px;
+  padding:12px;text-align:center;width:130px;transition:all 0.3s;}
+.trail-node-box.source-doc{border-color:var(--accent-orange);}
+.trail-node-box.journal{border-color:var(--accent-blue);}
+.trail-node-box.ledger{border-color:var(--accent-purple);}
+.trail-node-box.tb{border-color:var(--accent-cyan);}
+.trail-node-box.fs{border-color:var(--accent-green);}
+.trail-node-box:hover{transform:scale(1.05);}
+.trail-node-icon{font-size:1.5rem;margin-bottom:4px;}
+.trail-node-label{font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
+.trail-node-value{font-size:0.75rem;color:var(--text-secondary);line-height:1.4;}
+.trail-arrow{display:flex;align-items:center;padding:0 8px;color:var(--text-dim);font-size:1.2rem;}
+.trail-connector{flex:1;height:2px;background:linear-gradient(90deg,var(--accent-blue),var(--accent-purple));margin-top:30px;}
+
+/* ============================================================
+   FINANCIAL STATEMENTS
+   ============================================================ */
+.fs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:16px;}
+.fs-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.fs-card-header{padding:12px 16px;font-size:0.9rem;font-weight:800;display:flex;align-items:center;gap:8px;}
+.fs-card-header.income{background:rgba(68,136,255,0.15);color:var(--accent-blue);}
+.fs-card-header.balance{background:rgba(0,230,118,0.15);color:var(--accent-green);}
+.fs-card-header.equity{background:rgba(187,134,252,0.15);color:var(--accent-purple);}
+.fs-card-header.cashflow{background:rgba(255,152,0,0.15);color:var(--accent-orange);}
+.fs-body{padding:14px 16px;}
+.fs-section{margin-bottom:12px;}
+.fs-section-title{font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);
+  margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.05);}
+.fs-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:0.82rem;}
+.fs-row .lbl{color:var(--text-secondary);}
+.fs-row .val{font-weight:600;}
+.fs-row .val.pos{color:var(--accent-green);}
+.fs-row .val.neg{color:var(--accent-red);}
+.fs-row .val.neu{color:var(--text-primary);}
+.fs-subtotal{border-top:1px solid rgba(255,255,255,0.1);padding-top:6px;margin-top:4px;}
+.fs-subtotal .lbl{font-weight:700;color:var(--text-primary);}
+.fs-subtotal .val{font-weight:800;}
+.fs-total{background:rgba(255,255,255,0.04);border-radius:6px;padding:8px 10px;margin-top:8px;
+  display:flex;justify-content:space-between;font-weight:800;font-size:0.9rem;}
+.fs-total .net-income{color:var(--accent-gold);}
+.fs-total .total-val{font-size:1rem;}
+
+/* ============================================================
+   SKILL BUTTONS (Battle actions)
+   ============================================================ */
+#skillBar{position:absolute;bottom:65px;left:0;right:0;height:90px;
+  background:linear-gradient(0deg,rgba(10,10,26,0.95),transparent);
+  display:none;align-items:center;justify-content:center;gap:10px;padding:10px 20px;z-index:20;}
+#skillBar.active{display:flex;}
+.skill-btn{background:var(--bg-card);border:2px solid var(--border);border-radius:10px;
+  padding:8px 14px;cursor:pointer;transition:all 0.3s;text-align:center;min-width:90px;
+  position:relative;overflow:hidden;}
+.skill-btn::after{content:'';position:absolute;inset:0;opacity:0;transition:0.3s;}
+.skill-btn.journal-skill{border-color:var(--accent-blue);}
+.skill-btn.journal-skill::after{background:rgba(68,136,255,0.2);}
+.skill-btn.post-skill{border-color:var(--accent-purple);}
+.skill-btn.post-skill::after{background:rgba(187,134,252,0.2);}
+.skill-btn.analyze-skill{border-color:var(--accent-gold);}
+.skill-btn.analyze-skill::after{background:rgba(240,192,64,0.2);}
+.skill-btn.report-skill{border-color:var(--accent-green);}
+.skill-btn.report-skill::after{background:rgba(0,230,118,0.2);}
+.skill-btn.close-skill{border-color:var(--accent-orange);}
+.skill-btn.close-skill::after{background:rgba(255,152,0,0.2);}
+.skill-btn:hover::after{opacity:1;}
+.skill-btn:hover{transform:translateY(-4px);}
+.skill-btn:disabled{opacity:0.3;cursor:not-allowed;transform:none;}
+.skill-icon{font-size:1.4rem;margin-bottom:2px;}
+.skill-name{font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;}
+.skill-cost{font-size:0.55rem;color:var(--accent-blue);}
+.skill-btn.used{opacity:0.5;}
+.skill-btn.ready{animation:readyGlow 1.5s infinite;}
+@keyframes readyGlow{0%,100%{box-shadow:none;}50%{box-shadow:0 0 15px rgba(68,136,255,0.6);}}
+
+/* ============================================================
+   CONTINUE / ACTION BUTTON
+   ============================================================ */
+.rpg-btn{padding:12px 32px;border:none;border-radius:8px;font-size:0.95rem;font-weight:700;
+  cursor:pointer;transition:all 0.3s;letter-spacing:1px;text-transform:uppercase;}
+.rpg-btn.primary{background:linear-gradient(135deg,#f0c040,#e8a020);color:#0a0a1a;box-shadow:0 0 20px rgba(240,192,64,0.3);}
+.rpg-btn.primary:hover{transform:translateY(-2px);box-shadow:0 0 30px rgba(240,192,64,0.6);}
+.rpg-btn.secondary{background:rgba(68,136,255,0.2);border:1px solid var(--accent-blue);color:var(--accent-blue);}
+.rpg-btn.secondary:hover{background:rgba(68,136,255,0.3);transform:translateY(-2px);}
+.rpg-btn.danger{background:rgba(255,68,68,0.2);border:1px solid var(--accent-red);color:var(--accent-red);}
+.rpg-btn.success{background:rgba(0,230,118,0.2);border:1px solid var(--accent-green);color:var(--accent-green);}
+.rpg-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:14px;}
+
+/* ============================================================
+   DIALOGUE BOX (NPC speech)
+   ============================================================ */
+#dialogueBox{position:absolute;bottom:65px;left:0;right:0;z-index:25;
+  background:rgba(10,10,26,0.97);border-top:2px solid var(--accent-gold);
+  border-bottom:1px solid var(--border);padding:16px 24px;display:none;}
+#dialogueBox.active{display:flex;align-items:flex-start;gap:14px;}
+.dlg-portrait{width:60px;height:60px;border-radius:10px;border:2px solid var(--accent-gold);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:2rem;
+  background:var(--bg-card);}
+.dlg-content{flex:1;}
+.dlg-name{font-size:0.75rem;font-weight:800;color:var(--accent-gold);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;}
+.dlg-text{font-size:0.9rem;color:var(--text-primary);line-height:1.6;}
+.dlg-continue{font-size:0.7rem;color:var(--accent-cyan);margin-top:8px;animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}.dlg-choices{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+.dlg-choice{background:rgba(68,136,255,0.1);border:1px solid rgba(68,136,255,0.3);
+  border-radius:6px;padding:8px 14px;cursor:pointer;font-size:0.82rem;color:var(--text-primary);
+  transition:all 0.3s;text-align:left;}
+.dlg-choice:hover{background:rgba(68,136,255,0.2);border-color:var(--accent-blue);color:var(--accent-blue);}
+
+/* ============================================================
+   NOTIFICATION / TOAST
+   ============================================================ */
+#toastContainer{position:absolute;top:80px;right:16px;z-index:100;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;
+  padding:10px 16px;font-size:0.82rem;min-width:200px;max-width:320px;
+  animation:toastIn 0.4s ease,toastOut 0.4s ease 2.6s forwards;border-left:3px solid var(--accent-blue);}
+.toast.success{border-left-color:var(--accent-green);}
+.toast.error{border-left-color:var(--accent-red);}
+.toast.gold{border-left-color:var(--accent-gold);}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px);}to{opacity:1;transform:translateX(0);}}
+@keyframes toastOut{from{opacity:1;}to{opacity:0;}}
+
+/* ============================================================
+   INFO PANEL (accounting explanation side panel)
+   ============================================================ */
+.info-box{background:rgba(68,136,255,0.06);border:1px solid rgba(68,136,255,0.25);
+  border-radius:10px;padding:14px;margin-bottom:14px;font-size:0.82rem;line-height:1.7;}
+.info-box .info-title{font-size:0.9rem;font-weight:700;color:var(--accent-cyan);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.info-box strong{color:var(--accent-gold);}
+.info-box .rule{background:rgba(240,192,64,0.1);border-radius:6px;padding:6px 10px;margin-top:8px;
+  border-left:3px solid var(--accent-gold);font-size:0.8rem;}
+
+/* ============================================================
+   EQUATION BAR
+   ============================================================ */
+.eq-bar{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;
+  padding:10px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;}
+.eq-part{text-align:center;}
+.eq-part .eq-label{font-size:0.65rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:2px;}
+.eq-part .eq-val{font-size:1.1rem;font-weight:800;}
+.eq-part .eq-val.asset{color:var(--accent-green);}
+.eq-part .eq-val.liab{color:var(--accent-red);}
+.eq-part .eq-val.equity{color:var(--accent-purple);}
+.eq-sep{font-size:1.2rem;color:var(--text-dim);margin-top:14px;}
+
+/* ============================================================
+   WORLD MAP (stage select)
+   ============================================================ */
+#worldMap{position:absolute;top:70px;bottom:60px;left:0;right:0;background:rgba(10,10,26,0.97);
+  display:none;z-index:15;overflow-y:auto;padding:20px;}
+#worldMap.active{display:block;}
+.world-title{text-align:center;font-size:1.4rem;font-weight:800;color:var(--accent-gold);margin-bottom:20px;}
+.stage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.stage-card{background:var(--bg-card);border:2px solid var(--border);border-radius:14px;
+  padding:18px;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;}
+.stage-card::before{content:'';position:absolute;inset:0;opacity:0;transition:0.3s;}
+.stage-card:hover::before{opacity:1;}
+.stage-card.unlocked:hover{border-color:var(--accent-gold);transform:translateY(-4px);box-shadow:var(--shadow-gold);}
+.stage-card.current{border-color:var(--accent-gold);box-shadow:var(--shadow-gold);}
+.stage-card.locked{opacity:0.4;cursor:not-allowed;}
+.stage-card.locked:hover{transform:none;border-color:var(--border);}
+.stage-card.completed{border-color:var(--accent-green);}
+.stage-number{font-size:0.7rem;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;}
+.stage-name{font-size:1.1rem;font-weight:800;color:var(--text-primary);margin-bottom:4px;}
+.stage-desc{font-size:0.78rem;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;}
+.stage-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.stage-badge{padding:3px 8px;border-radius:5px;font-size:0.65rem;font-weight:700;}
+.badge-unlock{background:rgba(0,230,118,0.2);color:var(--accent-green);}
+.badge-locked{background:rgba(255,255,255,0.05);color:var(--text-dim);}
+.badge-done{background:rgba(0,230,118,0.3);color:var(--accent-green);}
+.badge-current{background:rgba(240,192,64,0.3);color:var(--accent-gold);}
+.stage-xp{margin-left:auto;font-size:0.75rem;color:var(--accent-gold);font-weight:700;}
+
+/* ============================================================
+   VICTORY / DEFEAT SCREEN
+   ============================================================ */
+#resultScreen{position:absolute;inset:0;background:rgba(10,10,26,0.97);display:none;
+  flex-direction:column;align-items:center;justify-content:center;z-index:50;}
+#resultScreen.active{display:flex;}
+.result-title{font-size:clamp(2rem,5vw,4rem);font-weight:900;margin-bottom:10px;}
+.result-title.victory{color:var(--accent-gold);text-shadow:0 0 30px rgba(240,192,64,0.8);}
+.result-title.defeat{color:var(--accent-red);text-shadow:0 0 30px rgba(255,68,68,0.8);}
+.result-score{font-size:1.5rem;color:var(--text-secondary);margin-bottom:30px;}
+.result-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:30px;width:min(500px,90vw);}
+.result-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;}
+.result-stat .r-val{font-size:1.6rem;font-weight:800;color:var(--accent-gold);}
+.result-stat .r-lbl{font-size:0.65rem;color:var(--text-dim);text-transform:uppercase;margin-top:4px;}
+.result-lessons{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+  padding:20px;max-width:600px;width:90%;margin-bottom:24px;font-size:0.85rem;line-height:1.8;}
+.result-lessons h3{color:var(--accent-cyan);margin-bottom:10px;font-size:1rem;}
+
+/* ============================================================
+   CLOSING / BOSS BATTLE EXTRAS
+   ============================================================ */
+.boss-intro{text-align:center;padding:30px;background:rgba(187,134,252,0.05);border-radius:12px;
+  border:1px solid rgba(187,134,252,0.2);margin-bottom:16px;}
+.boss-intro h2{font-size:1.6rem;font-weight:800;color:var(--accent-purple);margin-bottom:8px;}
+
+/* ============================================================
+   SCROLLBARS
+   ============================================================ */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+/* ============================================================
+   RESPONSIVE TWEAKS
+   ============================================================ */
+@media(max-width:600px){
+  .hud-section{padding:0 6px;gap:5px;}
+  .cycle-node{padding:0 4px;}
+  .cycle-dot{width:26px;height:26px;font-size:0.7rem;}
+  .cycle-lbl{font-size:0.4rem;}
+  .fs-grid{grid-template-columns:1fr;}
+  #skillBar{gap:6px;padding:8px;}
+  .skill-btn{min-width:70px;padding:6px 10px;}
+}
+</style>
+</head>
+<body>
+
+<!-- BACKGROUND CANVAS -->
+<canvas id="worldCanvas"></canvas>
+
+<!-- TOAST NOTIFICATIONS -->
+<div id="ui">
+<div id="toastContainer"></div>
+
+<!-- ============================================================
+     TITLE SCREEN
+     ============================================================ -->
+<div id="titleScreen" class="screen active">
+  <div class="title-logo">⚔️ LEDGER WARS ⚔️</div>
+  <div class="title-sub">The Full Accounting Cycle RPG</div>
+  <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:30px;text-align:center;max-width:500px;line-height:1.6;">
+    Battle through 8 epic stages. Every transaction you encounter creates a real audit trail —
+    from <span style="color:var(--accent-orange)">source document</span> → 
+    <span style="color:var(--accent-blue)">journal</span> → 
+    <span style="color:var(--accent-purple)">ledger</span> → 
+    <span style="color:var(--accent-cyan)">trial balance</span> → 
+    <span style="color:var(--accent-green)">financial statements</span>.
+  </div>
+  <div class="diff-grid">
+    <div class="diff-card easy" onclick="selectDiff('easy')">
+      <div class="diff-icon">🌱</div>
+      <div class="diff-name" style="color:var(--accent-green)">Apprentice</div>
+      <div class="diff-desc">Guided gameplay • Full hints • 3 mistakes allowed • Learn every concept</div>
+    </div>
+    <div class="diff-card medium" onclick="selectDiff('medium')">
+      <div class="diff-icon">⚔️</div>
+      <div class="diff-name" style="color:var(--accent-orange)">Journeyman</div>
+      <div class="diff-desc">Partial hints • Timed actions • 2 mistakes • Standard accountant</div>
+    </div>
+    <div class="diff-card hard" onclick="selectDiff('hard')">
+      <div class="diff-icon">💀</div>
+      <div class="diff-name" style="color:var(--accent-red)">CPA Mode</div>
+      <div class="diff-desc">No hints • Strict timing • 1 mistake only • For the pros</div>
+    </div>
+    <div class="diff-card superhard" onclick="selectDiff('superhard')">
+      <div class="diff-icon">☠️</div>
+      <div class="diff-name" style="color:var(--accent-purple)">SUPER HARD</div>
+      <div class="diff-desc">Brutal mode • Zero mistakes • Complex transactions • Legend only</div>
+    </div>
+  </div>
+  <button class="play-btn" onclick="startGame()">⚔️ BEGIN QUEST</button>
+  <div style="margin-top:16px;font-size:0.7rem;color:var(--text-dim);">
+    📖 Follow every dollar from transaction to financial statement
+  </div>
+</div>
+
+<!-- ============================================================
+     HUD
+     ============================================================ -->
+<div id="hud" style="display:none;">
+  <div class="hud-section">
+    <div class="hud-avatar" id="playerAvatar">🧙</div>
+    <div class="hud-bars">
+      <div class="bar-row">
+        <span class="bar-label">HP</span>
+        <div class="bar-track"><div class="bar-fill hp" id="playerHPFill" style="width:100%;"></div></div>
+        <span style="font-size:0.65rem;color:var(--text-secondary);" id="playerHPText">100</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">MP</span>
+        <div class="bar-track"><div class="bar-fill mp" id="playerMPFill" style="width:100%;"></div></div>
+        <span style="font-size:0.65rem;color:var(--text-secondary);" id="playerMPText">100</span>
+      </div>
+    </div>
+  </div>
+  <div class="hud-section">
+    <div class="hud-stat"><div class="val" id="hudScore">0</div><div class="lbl">Score</div></div>
+    <div class="hud-stat"><div class="val" id="hudXP">0</div><div class="lbl">XP</div></div>
+    <div class="hud-stat"><div class="val" id="hudGold" style="color:var(--accent-gold);">💰0</div><div class="lbl">Gold</div></div>
+    <div class="hud-stat"><div class="val" id="hudStreak" style="color:var(--accent-orange);">🔥0</div><div class="lbl">Streak</div></div>
+  </div>
+  <div class="hud-section" style="flex:1;justify-content:center;">
+    <div class="hud-phase">
+      <div class="phase-name" id="hudPhaseName">——</div>
+      <div class="phase-step" id="hudPhaseStep">Stage 0 / 8</div>
+    </div>
+  </div>
+  <div class="hud-section">
+    <button class="rpg-btn secondary" style="padding:6px 14px;font-size:0.7rem;" onclick="showWorldMap()">🗺️ MAP</button>
+    <button class="rpg-btn danger" style="padding:6px 14px;font-size:0.7rem;" onclick="goTitle()">⚡ QUIT</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     CYCLE TRACKER
+     ============================================================ -->
+<div id="cycleTracker" style="display:none;"></div>
+
+<!-- ============================================================
+     GAME AREA
+     ============================================================ -->
+<div id="gameArea">
+
+  <!-- BATTLE SCENE -->
+  <div id="battleScene">
+    <div class="battle-ground"></div>
+    <!-- HP Bars -->
+    <div class="char-hpbar" id="playerHPBar">
+      <div class="char-name" id="playerCharName">The Accountant</div>
+      <div class="char-bar-track"><div class="char-bar-fill hp" id="playerBattleHP" style="width:100%;"></div></div>
+      <div class="char-hp-text" id="playerBattleHPText">100 / 100</div>
+    </div>
+    <div class="char-hpbar" id="enemyHPBar">
+      <div class="char-name" id="enemyName">—</div>
+      <div class="char-bar-track"><div class="char-bar-fill ep" id="enemyHP" style="width:100%;"></div></div>
+      <div class="char-hp-text" id="enemyHPText">100 / 100</div>
+    </div>
+    <!-- Characters drawn via canvas / emoji -->
+    <div id="playerChar" style="font-size:5rem;display:flex;align-items:flex-end;">🧙‍♂️</div>
+    <div id="enemyChar" style="font-size:6rem;display:flex;align-items:flex-end;justify-content:flex-end;">💼</div>
+    <!-- Action Log -->
+    <div id="actionLog"></div>
+  </div>
+
+  <!-- SKILL BAR -->
+  <div id="skillBar">
+    <div class="skill-btn journal-skill ready" id="skillJournal" onclick="useSkill('journal')">
+      <div class="skill-icon">📝</div>
+      <div class="skill-name">Journal</div>
+      <div class="skill-cost">Record Entry</div>
+    </div>
+    <div class="skill-btn post-skill" id="skillPost" onclick="useSkill('post')" disabled>
+      <div class="skill-icon">📒</div>
+      <div class="skill-name">Post</div>
+      <div class="skill-cost">To Ledger</div>
+    </div>
+    <div class="skill-btn analyze-skill" id="skillAnalyze" onclick="useSkill('analyze')" disabled>
+      <div class="skill-icon">⚖️</div>
+      <div class="skill-name">Balance</div>
+      <div class="skill-cost">Trial Balance</div>
+    </div>
+    <div class="skill-btn report-skill" id="skillReport" onclick="useSkill('report')" disabled>
+      <div class="skill-icon">📊</div>
+      <div class="skill-name">Report</div>
+      <div class="skill-cost">Fin. Stmts</div>
+    </div>
+    <div class="skill-btn close-skill" id="skillClose" onclick="useSkill('close')" disabled>
+      <div class="skill-icon">🔒</div>
+      <div class="skill-name">Close</div>
+      <div class="skill-cost">Period End</div>
+    </div>
+    <div class="skill-btn" id="skillTrail" onclick="useSkill('trail')" style="border-color:var(--accent-cyan);" disabled>
+      <div class="skill-icon">🔍</div>
+      <div class="skill-name">Audit</div>
+      <div class="skill-cost">Trail</div>
+    </div>
+  </div>
+
+  <!-- WORLD MAP -->
+  <div id="worldMap">
+    <div class="world-title">🗺️ The Accounting Cycle — World Map</div>
+    <div class="stage-grid" id="stageGrid"></div>
+  </div>
+
+  <!-- TRANSACTION PANEL -->
+  <div id="transactionPanel"></div>
+
+  <!-- JOURNAL PANEL -->
+  <div id="journalPanel"></div>
+
+  <!-- LEDGER PANEL -->
+  <div id="ledgerPanel"></div>
+
+  <!-- TRAIL PANEL -->
+  <div id="trailPanel"></div>
+
+  <!-- FS PANEL -->
+  <div id="fsPanel"></div>
+
+</div><!-- end gameArea -->
+
+<!-- DIALOGUE BOX -->
+<div id="dialogueBox">
+  <div class="dlg-portrait" id="dlgPortrait">🧙</div>
+  <div class="dlg-content">
+    <div class="dlg-name" id="dlgName">Guide Luca</div>
+    <div class="dlg-text" id="dlgText">Welcome to Ledger Wars!</div>
+    <div class="dlg-choices" id="dlgChoices"></div>
+    <div class="dlg-continue" id="dlgContinue">▼ Press anywhere to continue</div>
+  </div>
+</div>
+
+<!-- RESULT SCREEN -->
+<div id="resultScreen">
+  <div class="result-title" id="resultTitle">VICTORY!</div>
+  <div class="result-score" id="resultScore"></div>
+  <div class="result-stats" id="resultStats"></div>
+  <div class="result-lessons" id="resultLessons"></div>
+  <div style="display:flex;gap:12px;">
+    <button class="rpg-btn primary" onclick="continueToNext()">NEXT STAGE ➡️</button>
+    <button class="rpg-btn secondary" onclick="showWorldMap()">🗺️ WORLD MAP</button>
+    <button class="rpg-btn danger" onclick="goTitle()">🏠 TITLE</button>
+  </div>
+</div>
+
+</div><!-- end ui -->
+
+<script>
+/* ================================================================
+   GAME DATA — Full Accounting Cycle for TechStart Co.
+   ================================================================ */
+
+const COMPANY = { name:"TechStart Co.", period:"January 2025" };
+
+// All 7 transactions with complete audit trail data
+const ALL_TRANSACTIONS = [
+  {
+    id:"T001", date:"Jan 1",
+    sourceDoc:{ type:"Bank Deposit Slip", number:"DS-001", description:"Owner deposits personal savings into business bank account" },
+    description:"Owner invested $50,000 cash into the business",
+    amount:50000, type:"equity",
+    accounts:{ debit:"Cash", credit:"Owner's Capital" },
+    effect:{ assets:+50000, liabilities:0, equity:+50000 },
+    fsImpact:{ statement:"Balance Sheet", line:"Cash (Asset) +$50,000 | Owner's Capital (Equity) +$50,000" },
+    explanation:"When an owner invests cash, ASSETS increase (Cash↑) and OWNER'S EQUITY increases (Capital↑). This keeps the accounting equation balanced: Assets = Liabilities + Equity.",
+    debitExplanation:"DEBIT Cash — Cash is an ASSET. Assets increase on the DEBIT side.",
+    creditExplanation:"CREDIT Owner's Capital — Capital is EQUITY. Equity increases on the CREDIT side.",
+    boss:{ name:"The Capital Beast", emoji:"💼", hp:100 }, difficulty:1
+  },
+  {
+    id:"T002", date:"Jan 3",
+    sourceDoc:{ type:"Purchase Invoice", number:"INV-003", description:"Computer equipment purchased from Tech Supplies Ltd." },
+    description:"Purchased equipment for $15,000 cash",
+    amount:15000, type:"asset",
+    accounts:{ debit:"Equipment", credit:"Cash" },
+    effect:{ assets:0, liabilities:0, equity:0 },
+    fsImpact:{ statement:"Balance Sheet", line:"Equipment (Asset) +$15,000 | Cash (Asset) -$15,000 | Net: $0" },
+    explanation:"Buying equipment with cash is an ASSET EXCHANGE — one asset goes up, another goes down. Total assets stay the same! No effect on liabilities or equity.",
+    debitExplanation:"DEBIT Equipment — Equipment is an ASSET. Assets increase on the DEBIT side.",
+    creditExplanation:"CREDIT Cash — Cash is an ASSET being given away. Assets decrease on the CREDIT side.",
+    boss:{ name:"Equipment Wyrm", emoji:"⚙️", hp:80 }, difficulty:1
+  },
+  {
+    id:"T003", date:"Jan 8",
+    sourceDoc:{ type:"Service Agreement", number:"SA-008", description:"Contract signed with Apex Corp for IT consulting services" },
+    description:"Provided services on account (credit) for $12,000",
+    amount:12000, type:"revenue",
+    accounts:{ debit:"Accounts Receivable", credit:"Service Revenue" },
+    effect:{ assets:+12000, liabilities:0, equity:+12000 },
+    fsImpact:{ statement:"Income Statement + Balance Sheet", line:"Service Revenue +$12,000 (IS) | Accounts Receivable +$12,000 (BS)" },
+    explanation:"Providing services ON ACCOUNT means we earned revenue but haven't received cash yet. This is ACCRUAL ACCOUNTING — we record revenue when EARNED, not when cash arrives.",
+    debitExplanation:"DEBIT Accounts Receivable — A/R is an ASSET (money owed to us). Assets increase on DEBIT side.",
+    creditExplanation:"CREDIT Service Revenue — Revenue is EQUITY. Revenue increases on the CREDIT side (it increases owner's equity).",
+    boss:{ name:"Revenue Specter", emoji:"👻", hp:120 }, difficulty:2
+  },
+  {
+    id:"T004", date:"Jan 12",
+    sourceDoc:{ type:"Rent Receipt", number:"REC-012", description:"Monthly office rent paid to BuildingPro Property Management" },
+    description:"Paid office rent $3,000 cash",
+    amount:3000, type:"expense",
+    accounts:{ debit:"Rent Expense", credit:"Cash" },
+    effect:{ assets:-3000, liabilities:0, equity:-3000 },
+    fsImpact:{ statement:"Income Statement + Balance Sheet", line:"Rent Expense +$3,000 (reduces Net Income) | Cash -$3,000 (BS)" },
+    explanation:"Paying rent is an EXPENSE — it reduces both CASH (asset) and ultimately OWNER'S EQUITY (because expenses reduce net income, which reduces equity).",
+    debitExplanation:"DEBIT Rent Expense — Expenses increase on the DEBIT side. Expenses reduce equity.",
+    creditExplanation:"CREDIT Cash — Cash decreases. Assets decrease on the CREDIT side.",
+    boss:{ name:"The Expense Drain", emoji:"🏢", hp:90 }, difficulty:2
+  },
+  {
+    id:"T005", date:"Jan 15",
+    sourceDoc:{ type:"Vendor Invoice", number:"VINV-015", description:"Office supplies ordered from OfficeMax (net 30 terms)" },
+    description:"Purchased supplies on credit for $2,500",
+    amount:2500, type:"liability",
+    accounts:{ debit:"Supplies", credit:"Accounts Payable" },
+    effect:{ assets:+2500, liabilities:+2500, equity:0 },
+    fsImpact:{ statement:"Balance Sheet", line:"Supplies +$2,500 (Asset) | Accounts Payable +$2,500 (Liability)" },
+    explanation:"Buying on CREDIT means we got the supplies but haven't paid yet. We owe the vendor money (LIABILITY). Both Assets AND Liabilities increase — equation stays balanced!",
+    debitExplanation:"DEBIT Supplies — Supplies is an ASSET. Assets increase on the DEBIT side.",
+    creditExplanation:"CREDIT Accounts Payable — A/P is a LIABILITY (money we owe). Liabilities increase on the CREDIT side.",
+    boss:{ name:"Debt Golem", emoji:"🗿", hp:110 }, difficulty:3
+  },
+  {
+    id:"T006", date:"Jan 20",
+    sourceDoc:{ type:"Bank Receipt", number:"BR-020", description:"Partial payment received from Apex Corp via bank transfer" },
+    description:"Collected $8,000 from accounts receivable",
+    amount:8000, type:"asset",
+    accounts:{ debit:"Cash", credit:"Accounts Receivable" },
+    effect:{ assets:0, liabilities:0, equity:0 },
+    fsImpact:{ statement:"Balance Sheet only", line:"Cash +$8,000 | Accounts Receivable -$8,000 | Net: $0 — NO revenue recognized!" },
+    explanation:"Collecting cash on account is another ASSET EXCHANGE. We already recorded the revenue in T003. Collecting cash just converts A/R into Cash — NO new revenue! Beginners often make this mistake.",
+    debitExplanation:"DEBIT Cash — Cash increases as we receive payment. Assets increase on DEBIT side.",
+    creditExplanation:"CREDIT Accounts Receivable — A/R decreases because the client paid. Assets decrease on CREDIT side.",
+    boss:{ name:"Collection Phantom", emoji:"👾", hp:95 }, difficulty:3
+  },
+  {
+    id:"T007", date:"Jan 31",
+    sourceDoc:{ type:"Payroll Register", number:"PR-031", description:"Monthly payroll processed for 2 full-time employees" },
+    description:"Paid employee salaries $5,000 cash",
+    amount:5000, type:"expense",
+    accounts:{ debit:"Salaries Expense", credit:"Cash" },
+    effect:{ assets:-5000, liabilities:0, equity:-5000 },
+    fsImpact:{ statement:"Income Statement + Balance Sheet", line:"Salaries Expense +$5,000 (IS) | Cash -$5,000 (BS)" },
+    explanation:"Salaries are a MAJOR expense. Like rent, this reduces both Cash and ultimately Owner's Equity through Net Income. At period end we'll see all expenses vs revenue on the Income Statement.",
+    debitExplanation:"DEBIT Salaries Expense — Expenses increase on the DEBIT side.",
+    creditExplanation:"CREDIT Cash — Cash paid decreases. Assets decrease on the CREDIT side.",
+    boss:{ name:"The Payroll Dragon", emoji:"🐉", hp:130 }, difficulty:3
+  }
+];
+
+// Adjusting entries (Step 5)
+const ADJUSTING_ENTRIES = [
+  {
+    id:"AJE-001",
+    scenario:"End of month: Physical count shows only $800 of supplies remain. Beginning balance was $2,500.",
+    description:"Record supplies used during January",
+    debit:"Supplies Expense", credit:"Supplies", amount:1700,
+    calculation:"$2,500 (beginning) − $800 (remaining) = $1,700 used",
+    explanation:"SUPPLIES EXPENSE = supplies consumed. The Supplies asset must be reduced to its actual ending balance of $800.",
+    type:"deferral"
+  },
+  {
+    id:"AJE-002",
+    scenario:"Equipment ($15,000) has a 5-year life, no salvage value. Using straight-line depreciation.",
+    description:"Record monthly depreciation on equipment",
+    debit:"Depreciation Expense", credit:"Accumulated Depreciation", amount:250,
+    calculation:"$15,000 ÷ 5 years ÷ 12 months = $250/month",
+    explanation:"Depreciation allocates the cost of long-term assets over their useful life. We credit ACCUMULATED DEPRECIATION (a contra-asset) instead of directly reducing Equipment.",
+    type:"depreciation"
+  }
+];
+
+// ================================================================
+// GAME STATE
+// ================================================================
+const G = {
+  diff:'easy',
+  currentStage:0,
+  completedStages:[],
+  playerHP:100, playerMaxHP:100,
+  playerMP:100, playerMaxMP:100,
+  score:0, xp:0, gold:0, streak:0, bestStreak:0,
+  txIndex:0,
+  journaledTx:[],
+  postedTx:[],
+  skillsUsed:{ journal:false, post:false, analyze:false, report:false, close:false },
+  ledger:{},
+  trialBalance:{ debits:0, credits:0 },
+  adjustedLedger:{},
+  netIncome:0,
+  ownerCapital:50000,
+  dialogue:[], dlgIndex:0,
+  activePanel:null,
+  battleActive:false,
+  currentTx:null,
+  pendingSkill:null,
+  totalAnswered:0,
+  totalCorrect:0,
+  comboPenalty:0
+};
+
+const DIFF_CONFIG = {
+  easy:     { hp:100, hints:true,  mistakes:3, mult:1.0,  timeLimit:0,   label:"🌱 Apprentice" },
+  medium:   { hp:80,  hints:true,  mistakes:2, mult:1.5,  timeLimit:60,  label:"⚔️ Journeyman" },
+  hard:     { hp:60,  hints:false, mistakes:1, mult:2.0,  timeLimit:45,  label:"💀 CPA Mode" },
+  superhard:{ hp:40,  hints:false, mistakes:0, mult:3.0,  timeLimit:30,  label:"☠️ SUPER HARD" }
+};
+
+const STAGES = [
+  { id:0, name:"Source Documents & Transactions", icon:"📄", desc:"Identify transactions and their source documents. Learn what triggers the accounting cycle.", phase:"Transaction Analysis", unlocked:true },
+  { id:1, name:"Journal Entries — The General Journal", icon:"📝", desc:"Record every transaction as a debit/credit journal entry. Follow the money!", phase:"Journalizing", unlocked:false },
+  { id:2, name:"Posting to the General Ledger", icon:"📒", desc:"Transfer journal entries to individual T-accounts in the ledger. Watch balances build.", phase:"Posting", unlocked:false },
+  { id:3, name:"The Unadjusted Trial Balance", icon:"⚖️", desc:"List all ledger balances and verify Debits = Credits before adjustments.", phase:"Trial Balance", unlocked:false },
+  { id:4, name:"Adjusting Entries", icon:"🔧", desc:"Record period-end adjustments for accruals, deferrals, and depreciation.", phase:"Adjusting", unlocked:false },
+  { id:5, name:"Adjusted Trial Balance", icon:"📋", desc:"Rebuild the trial balance after adjustments. The final check before financial statements.", phase:"Adj. Trial Balance", unlocked:false },
+  { id:6, name:"Financial Statements", icon:"📊", desc:"Prepare the Income Statement, Balance Sheet, and Statement of Equity.", phase:"Financial Reporting", unlocked:false },
+  { id:7, name:"Closing Entries & Post-Closing TB", icon:"🔒", desc:"Close revenue/expense accounts and prepare for the next accounting period.", phase:"Closing", unlocked:false }
+];
+
+const CYCLE_LABELS = ["📄 Source","📝 Journal","📒 Ledger","⚖️ Unadj TB","🔧 Adjust","📋 Adj TB","📊 Fin Stmt","🔒 Close"];
+
+// ================================================================
+// CANVAS BACKGROUND
+// ================================================================
+(function initCanvas(){
+  const c = document.getElementById('worldCanvas');
+  const ctx = c.getContext('2d');
+  let particles = [];
+
+  function resize(){ c.width = window.innerWidth; c.height = window.innerHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+
+  for(let i=0;i<120;i++){
+    particles.push({
+      x:Math.random()*window.innerWidth,
+      y:Math.random()*window.innerHeight,
+      r:Math.random()*1.5+0.3,
+      vx:(Math.random()-0.5)*0.3,
+      vy:(Math.random()-0.5)*0.3,
+      a:Math.random()
+    });
+  }
+
+  // Floating accounting symbols
+  const symbols = ['$','¢','%','Dr','Cr','=','∑','≡','Dr','Cr'];
+  let floats = [];
+  for(let i=0;i<15;i++){
+    floats.push({
+      x:Math.random()*window.innerWidth,
+      y:Math.random()*window.innerHeight,
+      text:symbols[Math.floor(Math.random()*symbols.length)],
+      vy:-0.3-Math.random()*0.3,
+      a:Math.random()*0.15+0.05,
+      size:10+Math.random()*14
+    });
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    // Draw subtle grid
+    ctx.strokeStyle='rgba(30,45,74,0.3)';
+    ctx.lineWidth=1;
+    for(let x=0;x<c.width;x+=60){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,c.height);ctx.stroke(); }
+    for(let y=0;y<c.height;y+=60){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(c.width,y);ctx.stroke(); }
+
+    // Stars
+    particles.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=c.width; if(p.x>c.width)p.x=0;
+      if(p.y<0)p.y=c.height; if(p.y>c.height)p.y=0;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(200,220,255,${p.a*0.6})`;ctx.fill();
+    });
+
+    // Floating symbols
+    floats.forEach(f=>{
+      f.y+=f.vy;
+      if(f.y<-30) f.y=c.height+30;
+      ctx.font=`${f.size}px monospace`;
+      ctx.fillStyle=`rgba(68,136,255,${f.a})`;
+      ctx.fillText(f.text,f.x,f.y);
+    });
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ================================================================
+// INIT
+// ================================================================
+function selectDiff(d){
+  G.diff = d;
+  document.querySelectorAll('.diff-card').forEach(c=>c.classList.remove('selected'));
+  document.querySelector('.diff-card.'+d).classList.add('selected');
+}
+selectDiff('easy');
+
+function startGame(){
+  const cfg = DIFF_CONFIG[G.diff];
+  G.playerHP = G.playerMaxHP = cfg.hp;
+  G.score=0; G.xp=0; G.gold=0; G.streak=0; G.bestStreak=0;
+  G.journaledTx=[]; G.postedTx=[]; G.currentStage=0;
+  G.completedStages=[];
+  G.ledger = initLedger();
+  G.txIndex=0;
+  G.totalAnswered=0; G.totalCorrect=0;
+
+  // Unlock first stage
+  STAGES[0].unlocked = true;
+  for(let i=1;i<STAGES.length;i++) STAGES[i].unlocked = false;
+
+  hideScreen('titleScreen');
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('cycleTracker').style.display='flex';
+  document.getElementById('gameArea').classList.add('active');
+
+  buildCycleTracker();
+  updateHUD();
+  loadStage(0);
+}
+
+function initLedger(){
+  return {
+    "Cash":               { debit:[], credit:[], type:"asset" },
+    "Accounts Receivable":{ debit:[], credit:[], type:"asset" },
+    "Supplies":           { debit:[{ref:"bal",amt:0}], credit:[], type:"asset" },
+    "Equipment":          { debit:[], credit:[], type:"asset" },
+    "Accumulated Depreciation":{ debit:[], credit:[], type:"contra-asset" },
+    "Accounts Payable":   { debit:[], credit:[], type:"liability" },
+    "Owner's Capital":    { debit:[], credit:[], type:"equity" },
+    "Service Revenue":    { debit:[], credit:[], type:"revenue" },
+    "Rent Expense":       { debit:[], credit:[], type:"expense" },
+    "Salaries Expense":   { debit:[], credit:[], type:"expense" },
+    "Supplies Expense":   { debit:[], credit:[], type:"expense" },
+    "Depreciation Expense":{ debit:[], credit:[], type:"expense" },
+    "Income Summary":     { debit:[], credit:[], type:"equity" }
+  };
+}
+
+// ================================================================
+// CYCLE TRACKER
+// ================================================================
+function buildCycleTracker(){
+  const ct = document.getElementById('cycleTracker');
+  ct.innerHTML = CYCLE_LABELS.map((lbl,i)=>`
+    <div class="cycle-node" id="cycleNode_${i}">
+      <div class="cycle-dot ${i===0?'active':'locked'}" id="cycleDot_${i}">${STAGES[i].icon}</div>
+      <div class="cycle-lbl ${i===0?'active-lbl':''}" id="cycleLbl_${i}">${lbl.split(' ')[1]||lbl}</div>
+    </div>
+  `).join('');
+}
+
+function updateCycleTracker(){
+  STAGES.forEach((s,i)=>{
+    const dot = document.getElementById('cycleDot_'+i);
+    const lbl = document.getElementById('cycleLbl_'+i);
+    if(!dot) return;
+    dot.className='cycle-dot';
+    lbl.className='cycle-lbl';
+    if(G.completedStages.includes(i)){ dot.classList.add('done'); }
+    else if(i===G.currentStage){ dot.classList.add('active'); lbl.classList.add('active-lbl'); }
+    else{ dot.classList.add('locked'); }
+  });
+}
+
+// ================================================================
+// HUD
+// ================================================================
+function updateHUD(){
+  document.getElementById('hudScore').textContent = G.score.toLocaleString();
+  document.getElementById('hudXP').textContent = G.xp;
+  document.getElementById('hudGold').textContent = '💰'+G.gold;
+  document.getElementById('hudStreak').textContent = '🔥'+G.streak;
+  const st = STAGES[G.currentStage];
+  document.getElementById('hudPhaseName').textContent = st ? st.phase : '——';
+  document.getElementById('hudPhaseStep').textContent = `Stage ${G.currentStage+1} / ${STAGES.length}`;
+  // HP/MP bars
+  const hpPct = (G.playerHP / G.playerMaxHP) * 100;
+  document.getElementById('playerHPFill').style.width = hpPct+'%';
+  document.getElementById('playerHPText').textContent = G.playerHP;
+  document.getElementById('playerHPFill').style.background =
+    hpPct > 60 ? 'linear-gradient(90deg,#4caf50,#8bc34a)' :
+    hpPct > 30 ? 'linear-gradient(90deg,#ffc107,#ff9800)' :
+    'linear-gradient(90deg,#f44336,#ff5722)';
+}
+
+// ================================================================
+// PANEL MANAGEMENT
+// ================================================================
+function showPanel(id){
+  ['transactionPanel','journalPanel','ledgerPanel','trailPanel','fsPanel','worldMap'].forEach(p=>{
+    document.getElementById(p).classList.remove('active');
+  });
+  document.getElementById('battleScene').classList.remove('active');
+  document.getElementById('skillBar').classList.remove('active');
+  if(id){
+    document.getElementById(id).classList.add('active');
+    G.activePanel = id;
+  }
+}
+
+function showBattleScene(){
+  ['transactionPanel','journalPanel','ledgerPanel','trailPanel','fsPanel','worldMap'].forEach(p=>{
+    document.getElementById(p).classList.remove('active');
+  });
+  document.getElementById('battleScene').classList.add('active');
+  document.getElementById('skillBar').classList.add('active');
+  G.activePanel = 'battle';
+}
+
+function hideScreen(id){ document.getElementById(id).classList.remove('active'); }
+function showScreen(id){ document.getElementById(id).classList.add('active'); }
+
+// ================================================================
+// WORLD MAP
+// ================================================================
+function showWorldMap(){
+  showPanel('worldMap');
+  renderWorldMap();
+}
+
+function renderWorldMap(){
+  const grid = document.getElementById('stageGrid');
+  grid.innerHTML = STAGES.map((s,i)=>{
+    const done = G.completedStages.includes(i);
+    const curr = i === G.currentStage;
+    const locked = !s.unlocked;
+    const cls = locked?'locked stage-card':done?'completed stage-card':curr?'current stage-card':'unlocked stage-card';
+    const badge = locked?'<span class="stage-badge badge-locked">🔒 LOCKED</span>':
+      done?'<span class="stage-badge badge-done">✅ CLEARED</span>':
+      curr?'<span class="stage-badge badge-current">⚔️ CURRENT</span>':
+      '<span class="stage-badge badge-unlock">🔓 AVAILABLE</span>';
+    const xpReward = (i+1)*150;
+    return `<div class="stage-card ${cls}" onclick="selectStage(${i})">
+      <div class="stage-number">Stage ${i+1} — ${s.phase}</div>
+      <div style="font-size:2rem;margin-bottom:6px;">${s.icon}</div>
+      <div class="stage-name">${s.name}</div>
+      <div class="stage-desc">${s.desc}</div>
+      <div class="stage-meta">${badge}<span class="stage-xp">+${xpReward} XP</span></div>
+    </div>`;
+  }).join('');
+}
+
+function selectStage(i){
+  if(!STAGES[i].unlocked) return toast('🔒 Complete previous stages first!','error');
+  G.currentStage = i;
+  loadStage(i);
+}
+
+// ================================================================
+// LOAD STAGE
+// ================================================================
+function loadStage(idx){
+  G.currentStage = idx;
+  updateCycleTracker();
+  updateHUD();
+  closeDialogue();
+
+  // Reset skill states for battle stages
+  Object.keys(G.skillsUsed).forEach(k=>G.skillsUsed[k]=false);
+  updateSkillButtons({ journal:true });
+
+  switch(idx){
+    case 0: stageSourceDocs(); break;
+    case 1: stageJournalEntries(); break;
+    case 2: stagePosting(); break;
+    case 3: stageTrialBalance(); break;
+    case 4: stageAdjusting(); break;
+    case 5: stageAdjustedTB(); break;
+    case 6: stageFinancialStatements(); break;
+    case 7: stageClosingEntries(); break;
+  }
+}
+
+// ================================================================
+// SKILL BUTTONS
+// ================================================================
+function updateSkillButtons(enabledMap){
+  const skills = ['journal','post','analyze','report','close','trail'];
+  skills.forEach(s=>{
+    const el = document.getElementById('skill'+cap(s));
+    if(!el) return;
+    el.disabled = !enabledMap[s];
+    el.classList.toggle('used', G.skillsUsed[s]);
+    el.classList.toggle('ready', !!enabledMap[s] && !G.skillsUsed[s]);
+  });
+}
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+function useSkill(skill){
+  G.pendingSkill = skill;
+  switch(skill){
+    case 'journal':  showJournalBuilder(); break;
+    case 'post':     showLedgerPosting(); break;
+    case 'analyze':  showTrialBalanceCheck(); break;
+    case 'report':   showFinancialStatements(); break;
+    case 'close':    showClosingPanel(); break;
+    case 'trail':    showAuditTrail(); break;
+  }
+}
+
+// ================================================================
+// STAGE 0 — SOURCE DOCUMENTS & TRANSACTIONS
+// ================================================================
+function stageSourceDocs(){
+  showBattleScene();
+  document.getElementById('enemyName').textContent = 'The Transaction Stream';
+  document.getElementById('enemyChar').textContent = '📄';
+  setEnemyHP(100,100);
+
+  updateSkillButtons({ journal:true, trail:true });
+
+  logAction('🌍 The accounting cycle begins! Transactions are flowing in...','neutral');
+  logAction('📄 Source documents carry the evidence of every business event.','neutral');
+  logAction('👆 Use JOURNAL skill to start recording transactions!','neutral');
+
+  showDialogue('📚', 'Guide Luca',
+    `Welcome to TechStart Co.! I'm your accounting guide. Every business transaction leaves a TRAIL — from a paper document all the way to the final financial statements. Your job: follow that trail and record everything correctly. Let's start with our first 7 transactions!`,
+    [{ text:"Let's begin! Show me the transactions!", fn: showTransactionList }]
+  );
+}
+
+function showTransactionList(){
+  closeDialogue();
+  showPanel('transactionPanel');
+  const panel = document.getElementById('transactionPanel');
+
+  const journaled = G.journaledTx.map(t=>t.id);
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">📄</div>
+      <div>
+        <div class="panel-title">Transaction Register — ${COMPANY.name}</div>
+        <div class="panel-subtitle">${COMPANY.period} • Source documents received • Click a transaction to process it</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📚 What is a Source Document?</div>
+      A <strong>source document</strong> is the original record of a business transaction. 
+      It provides <strong>evidence</strong> that the transaction occurred and is the starting point of the <strong>audit trail</strong>.
+      Examples: invoices, receipts, bank deposit slips, contracts, payroll registers.<br>
+      <div class="rule">🔑 Rule: No source document = No journal entry. This is the foundation of the accounting cycle!</div>
+    </div>
+
+    <div class="eq-bar">
+      <div class="eq-part"><div class="eq-label">Assets</div><div class="eq-val asset" id="eqAssets">$50,000</div></div>
+      <div class="eq-sep">=</div>
+      <div class="eq-part"><div class="eq-label">Liabilities</div><div class="eq-val liab" id="eqLiab">$0</div></div>
+      <div class="eq-sep">+</div>
+      <div class="eq-part"><div class="eq-label">Equity</div><div class="eq-val equity" id="eqEquity">$50,000</div></div>
+    </div>
+
+    <div id="txList">
+      ${ALL_TRANSACTIONS.map((tx,i)=>{
+        const done = journaled.includes(tx.id);
+        return `
+        <div class="tx-card ${tx.type} ${done?'locked':''}" onclick="${done?'':('openTransaction('+i+')')}" id="txCard_${i}">
+          <div class="tx-header">
+            <span class="tx-id">${tx.sourceDoc.type} #${tx.sourceDoc.number}</span>
+            <span class="tx-amount">$${tx.amount.toLocaleString()}</span>
+          </div>
+          <div class="tx-desc">${tx.description}</div>
+          <div class="tx-meta">
+            <span class="tx-tag date">📅 ${tx.date}</span>
+            <span class="tx-tag type">${tx.type.toUpperCase()}</span>
+            <span class="tx-tag doc">${tx.sourceDoc.description}</span>
+          </div>
+          <div class="tx-status ${done?'done':'pending'}" style="margin-top:6px;">
+            ${done?'✅ JOURNALIZED — Check audit trail!':'⏳ Awaiting journal entry...'}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn secondary" onclick="showAuditTrail()">🔍 View Audit Trail</button>
+      ${journaled.length===ALL_TRANSACTIONS.length?
+        `<button class="rpg-btn primary" onclick="completeStage(0)">✅ All Journalized! Continue →</button>`:''}
+    </div>
+  `;
+}
+
+function openTransaction(idx){
+  const tx = ALL_TRANSACTIONS[idx];
+  G.currentTx = tx;
+  showPanel('transactionPanel');
+  const panel = document.getElementById('transactionPanel');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">${tx.type==='asset'?'🟢':tx.type==='liability'?'🔴':tx.type==='equity'?'🟣':tx.type==='revenue'?'🔵':'🟠'}</div>
+      <div>
+        <div class="panel-title">Transaction Event: ${tx.id}</div>
+        <div class="panel-subtitle">${tx.date} — ${tx.sourceDoc.type} #${tx.sourceDoc.number}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="info-box" style="margin:0;">
+        <div class="info-title">📄 Source Document</div>
+        <strong>Type:</strong> ${tx.sourceDoc.type}<br>
+        <strong>Number:</strong> ${tx.sourceDoc.number}<br>
+        <strong>Description:</strong> ${tx.sourceDoc.description}<br>
+        <div class="rule">This document PROVES the transaction happened!</div>
+      </div>
+      <div class="info-box" style="margin:0;background:rgba(240,192,64,0.05);border-color:rgba(240,192,64,0.25);">
+        <div class="info-title" style="color:var(--accent-gold);">💡 Transaction Analysis</div>
+        <strong>What happened?</strong><br>
+        ${tx.explanation}<br>
+        <div class="rule" style="border-color:var(--accent-gold);">Effect: Assets ${tx.effect.assets>=0?'+':''}<strong>$${Math.abs(tx.effect.assets).toLocaleString()}</strong> | Liabilities ${tx.effect.liabilities>=0?'+':''}<strong>$${Math.abs(tx.effect.liabilities).toLocaleString()}</strong> | Equity ${tx.effect.equity>=0?'+':''}<strong>$${Math.abs(tx.effect.equity).toLocaleString()}</strong></div>
+      </div>
+    </div>
+
+    <div class="info-box" style="background:rgba(0,230,118,0.05);border-color:rgba(0,230,118,0.25);">
+      <div class="info-title" style="color:var(--accent-green);">📊 Where will this appear in Financial Statements?</div>
+      <strong>${tx.fsImpact.statement}:</strong> ${tx.fsImpact.line}
+    </div>
+
+    <div class="je-builder">
+      <div class="je-title">📝 Record the Journal Entry for: <span style="color:var(--text-primary);font-size:0.9rem;">${tx.description}</span></div>
+      ${buildJournalEntryForm(tx)}
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn secondary" onclick="showTransactionList()">← Back to List</button>
+    </div>
+  `;
+}
+
+function buildJournalEntryForm(tx){
+  const accounts = Object.keys(G.ledger);
+  const diff = G.diff;
+  const showHints = diff === 'easy' || diff === 'medium';
+
+  return `
+    <table class="je-table" style="margin-bottom:10px;">
+      <thead>
+        <tr>
+          <th width="80">Date</th>
+          <th>Account Title</th>
+          <th width="60">Ref</th>
+          <th width="120">Debit ($)</th>
+          <th width="120">Credit ($)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="dr-row">
+          <td style="color:var(--text-dim);">${tx.date}</td>
+          <td>
+            <span class="dr-badge">Dr</span>
+            <select class="je-input" id="jeDebitAcc" style="width:calc(100% - 40px);margin-left:6px;">
+              <option value="">— Select Debit Account —</option>
+              ${accounts.map(a=>`<option value="${a}" ${a===tx.accounts.debit?'':''}>${a}</option>`).join('')}
+            </select>
+          </td>
+          <td style="color:var(--text-dim);">101</td>
+          <td><input class="je-input" type="number" id="jeDebitAmt" placeholder="0.00" min="0" oninput="updateJEBalance()"></td>
+          <td style="color:var(--text-dim);">—</td>
+        </tr>
+        <tr class="cr-row">
+          <td></td>
+          <td class="cr-indent">
+            <span class="cr-badge">Cr</span>
+            <select class="je-input" id="jeCreditAcc" style="width:calc(100% - 40px);margin-left:6px;">
+              <option value="">— Select Credit Account —</option>
+              ${accounts.map(a=>`<option value="${a}" ${a===tx.accounts.credit?'':''}>${a}</option>`).join('')}
+            </select>
+          </td>
+          <td style="color:var(--text-dim);">301</td>
+          <td style="color:var(--text-dim);">—</td>
+          <td><input class="je-input" type="number" id="jeCreditAmt" placeholder="0.00" min="0" oninput="updateJEBalance()"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    ${showHints?`
+    <div class="info-box" style="margin-bottom:10px;">
+      <div class="info-title">💡 Accounting Hints</div>
+      <span style="color:var(--accent-blue);">Debit side:</span> ${tx.debitExplanation}<br>
+      <span style="color:var(--accent-purple);">Credit side:</span> ${tx.creditExplanation}
+    </div>`:''}
+
+    <div class="je-balance">
+      <div class="je-bal-item"><div class="je-bal-val" id="jeDrTotal" style="color:var(--accent-blue);">$0</div><div class="je-bal-lbl">Total Debits</div></div>
+      <div style="font-size:1.5rem;color:var(--text-dim);display:flex;align-items:center;">⚖️</div>
+      <div class="je-bal-item"><div class="je-bal-val" id="jeCrTotal" style="color:var(--accent-purple);">$0</div><div class="je-bal-lbl">Total Credits</div></div>
+      <div style="display:flex;align-items:center;"><div class="je-bal-val" id="jeBalStatus" style="font-size:1rem;">—</div></div>
+    </div>
+    <button class="je-submit" id="jeSubmitBtn" onclick="submitJournalEntry('${tx.id}')">⚔️ POST JOURNAL ENTRY — Attack the Transaction!</button>
+  `;
+}
+
+function updateJEBalance(){
+  const dr = parseFloat(document.getElementById('jeDebitAmt')?.value)||0;
+  const cr = parseFloat(document.getElementById('jeCreditAmt')?.value)||0;
+  const drEl = document.getElementById('jeDrTotal');
+  const crEl = document.getElementById('jeCrTotal');
+  const statusEl = document.getElementById('jeBalStatus');
+  if(drEl) drEl.textContent = '$'+dr.toLocaleString();
+  if(crEl) crEl.textContent = '$'+cr.toLocaleString();
+  if(statusEl){
+    if(dr===cr&&dr>0){ statusEl.textContent='✅ BALANCED'; statusEl.style.color='var(--accent-green)'; }
+    else if(dr>0||cr>0){ statusEl.textContent='❌ UNBALANCED'; statusEl.style.color='var(--accent-red)'; }
+    else{ statusEl.textContent='—'; statusEl.style.color='var(--text-dim)'; }
+  }
+}
+
+function submitJournalEntry(txId){
+  const tx = ALL_TRANSACTIONS.find(t=>t.id===txId);
+  if(!tx) return;
+
+  const drAcc = document.getElementById('jeDebitAcc')?.value||'';
+  const crAcc = document.getElementById('jeCreditAcc')?.value||'';
+  const drAmt = parseFloat(document.getElementById('jeDebitAmt')?.value)||0;
+  const crAmt = parseFloat(document.getElementById('jeCreditAmt')?.value)||0;
+
+  G.totalAnswered++;
+  const correctDr = drAcc === tx.accounts.debit;
+  const correctCr = crAcc === tx.accounts.credit;
+  const correctAmt = drAmt === tx.amount && crAmt === tx.amount;
+  const balanced = drAmt === crAmt && drAmt > 0;
+
+  let allCorrect;
+  if(G.diff==='superhard') allCorrect = correctDr && correctCr && correctAmt;
+  else allCorrect = correctDr && correctCr && balanced;
+
+  if(allCorrect){
+    G.totalCorrect++;
+    G.streak++;
+    if(G.streak>G.bestStreak) G.bestStreak=G.streak;
+
+    // Post to ledger automatically
+    G.ledger[tx.accounts.debit].debit.push({ ref:tx.id, amt:tx.amount });
+    G.ledger[tx.accounts.credit].credit.push({ ref:tx.id, amt:tx.amount });
+    G.journaledTx.push(tx);
+
+    const cfg = DIFF_CONFIG[G.diff];
+    const xpEarned = Math.floor((80 + G.streak*10) * cfg.mult);
+    const goldEarned = Math.floor(xpEarned/10);
+    G.xp += xpEarned; G.gold += goldEarned; G.score += xpEarned*10;
+    updateHUD();
+
+    // Battle animation
+    showBattleAnimation('player', tx.amount);
+    toast(`✅ CORRECT! Dr. ${tx.accounts.debit} / Cr. ${tx.accounts.credit} — +${xpEarned}XP +${goldEarned}💰`,'success');
+
+    // Show audit trail briefly
+    setTimeout(()=>{
+      showMiniAuditTrail(tx);
+    }, 600);
+
+  } else {
+    G.streak = 0;
+    G.playerHP = Math.max(0, G.playerHP - 20);
+    updateHUD();
+
+    showBattleAnimation('enemy', 20);
+    let errMsg = '';
+    if(!correctDr) errMsg += `❌ Wrong DEBIT account (should be: ${tx.accounts.debit}). `;
+    if(!correctCr) errMsg += `❌ Wrong CREDIT account (should be: ${tx.accounts.credit}). `;
+    if(!balanced) errMsg += '❌ Debits must equal Credits. ';
+    toast('❌ '+errMsg,'error');
+
+    if(G.playerHP<=0){
+      setTimeout(()=>showDefeat(),1000);
+      return;
+    }
+  }
+}
+
+// ================================================================
+// MINI AUDIT TRAIL POPUP after each journal entry
+// ================================================================
+function showMiniAuditTrail(tx){
+  showPanel('transactionPanel');
+  const panel = document.getElementById('transactionPanel');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">🔍</div>
+      <div>
+        <div class="panel-title">Audit Trail Created! — ${tx.id}</div>
+        <div class="panel-subtitle">Follow this dollar from event to financial statement</div>
+      </div>
+    </div>
+
+    <div style="overflow-x:auto;padding:10px 0;">
+      <div style="display:flex;align-items:center;min-width:700px;gap:0;padding:10px;">
+
+        <!-- Step 1: Event -->
+        <div style="text-align:center;min-width:130px;">
+          <div style="background:rgba(255,152,0,0.15);border:2px solid var(--accent-orange);border-radius:10px;padding:12px;">
+            <div style="font-size:1.8rem;">🌍</div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--accent-orange);text-transform:uppercase;margin:4px 0;">Business Event</div>
+            <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.4;">${tx.description}</div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:4px;">Amount: $${tx.amount.toLocaleString()}</div>
+          </div>
+        </div>
+        <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--accent-orange),var(--accent-blue));min-width:30px;"></div>
+
+        <!-- Step 2: Source Doc -->
+        <div style="text-align:center;min-width:130px;">
+          <div style="background:rgba(68,136,255,0.1);border:2px solid var(--accent-blue);border-radius:10px;padding:12px;">
+            <div style="font-size:1.8rem;">📄</div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--accent-blue);text-transform:uppercase;margin:4px 0;">Source Document</div>
+            <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.4;">${tx.sourceDoc.type}<br>#${tx.sourceDoc.number}</div>
+          </div>
+        </div>
+        <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--accent-blue),var(--accent-purple));min-width:30px;"></div>
+
+        <!-- Step 3: Journal Entry -->
+        <div style="text-align:center;min-width:150px;">
+          <div style="background:rgba(187,134,252,0.1);border:2px solid var(--accent-purple);border-radius:10px;padding:12px;">
+            <div style="font-size:1.8rem;">📝</div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--accent-purple);text-transform:uppercase;margin:4px 0;">Journal Entry</div>
+            <div style="font-size:0.75rem;line-height:1.6;">
+              <span style="color:var(--accent-blue);">Dr. ${tx.accounts.debit}</span><br>
+              <span style="color:var(--text-dim);padding-left:12px;">$${tx.amount.toLocaleString()}</span><br>
+              <span style="color:var(--accent-purple);">&nbsp;&nbsp;Cr. ${tx.accounts.credit}</span><br>
+              <span style="color:var(--text-dim);padding-left:24px;">$${tx.amount.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--accent-purple),var(--accent-cyan));min-width:30px;"></div>
+
+        <!-- Step 4: Ledger -->
+        <div style="text-align:center;min-width:130px;">
+          <div style="background:rgba(0,212,255,0.1);border:2px solid var(--accent-cyan);border-radius:10px;padding:12px;">
+            <div style="font-size:1.8rem;">📒</div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--accent-cyan);text-transform:uppercase;margin:4px 0;">General Ledger</div>
+            <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.4;">
+              ${tx.accounts.debit}:<br>
+              <span style="color:var(--accent-blue);">+$${tx.amount.toLocaleString()} Dr</span><br>
+              ${tx.accounts.credit}:<br>
+              <span style="color:var(--accent-purple);">+$${tx.amount.toLocaleString()} Cr</span>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;height:2px;background:linear-gradient(90deg,var(--accent-cyan),var(--accent-green));min-width:30px;"></div>
+
+        <!-- Step 5: Financial Statements -->
+        <div style="text-align:center;min-width:140px;">
+          <div style="background:rgba(0,230,118,0.1);border:2px solid var(--accent-green);border-radius:10px;padding:12px;">
+            <div style="font-size:1.8rem;">📊</div>
+            <div style="font-size:0.65rem;font-weight:700;color:var(--accent-green);text-transform:uppercase;margin:4px 0;">Financial Statement</div>
+            <div style="font-size:0.72rem;color:var(--text-secondary);line-height:1.5;">${tx.fsImpact.statement}:<br>${tx.fsImpact.line}</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top:10px;">
+      <div class="info-title">🎯 Accounting Impact</div>
+      ${tx.explanation}<br>
+      <div class="rule">Assets ${tx.effect.assets>=0?'+':''}<strong>$${Math.abs(tx.effect.assets).toLocaleString()}</strong> | Liabilities ${tx.effect.liabilities>=0?'+':''}<strong>$${Math.abs(tx.effect.liabilities).toLocaleString()}</strong> | Equity ${tx.effect.equity>=0?'+':''}<strong>$${Math.abs(tx.effect.equity).toLocaleString()}</strong></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn primary" onclick="showTransactionList()">← Back to Transactions</button>
+    </div>
+  `;
+}
+
+// ================================================================
+// STAGE 1 — JOURNAL ENTRIES
+// ================================================================
+function stageJournalEntries(){
+  showBattleScene();
+  document.getElementById('enemyName').textContent = 'The Unrecorded Boss';
+  document.getElementById('enemyChar').textContent = '📝';
+  setEnemyHP(100,100);
+
+  updateSkillButtons({ journal:true, trail:true });
+
+  showDialogue('📝','The Bookkeeper',
+    `NOW we fight every transaction with precision! You'll journal ALL 7 transactions in order. Remember: DEBIT = LEFT side, CREDIT = RIGHT side. Every entry must balance! The Accounting Equation (A = L + E) must always hold true!`,
+    [{ text:'Ready! Let me journal all transactions!', fn:showTransactionList }]
+  );
+}
+
+// ================================================================
+// STAGE 2 — POSTING TO LEDGER
+// ================================================================
+function stagePosting(){
+  showBattleScene();
+  document.getElementById('enemyName').textContent = 'The Unposted Chaos';
+  document.getElementById('enemyChar').textContent = '📒';
+  setEnemyHP(100,100);
+
+  updateSkillButtons({ post:true, trail:true });
+
+  showDialogue('📒','Master Ledger',
+    `Journaling is done! Now we POST each journal entry to the General Ledger. Each account gets its own T-account. Watch how balances build up — this is where we can SEE the financial position taking shape!`,
+    [{ text:'Show me the ledger!', fn:()=>{ showPanel('ledgerPanel'); renderLedger(); } }]
+  );
+}
+
+function renderLedger(){
+  const panel = document.getElementById('ledgerPanel');
+  const ledger = G.ledger;
+
+  const getLedgerBalance = (acc)=>{
+    const data = ledger[acc];
+    if(!data) return 0;
+    const dr = data.debit.reduce((s,e)=>s+e.amt,0);
+    const cr = data.credit.reduce((s,e)=>s+e.amt,0);
+    const normalDr = ['asset','expense'].includes(data.type);
+    return normalDr ? dr-cr : cr-dr;
+  };
+
+  const typeMap = {
+    'asset':'badge-asset','contra-asset':'badge-asset','liability':'badge-liab',
+    'equity':'badge-equity','revenue':'badge-rev','expense':'badge-exp'
+  };
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">📒</div>
+      <div>
+        <div class="panel-title">General Ledger — T-Accounts</div>
+        <div class="panel-subtitle">${COMPANY.name} — ${COMPANY.period} — All journal entries posted below</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📚 How T-Accounts Work</div>
+      Each account in the ledger has a <strong>T-account</strong> with <strong>DEBITS on the LEFT</strong> and <strong>CREDITS on the RIGHT</strong>.<br>
+      The <strong>normal balance</strong> side shows where it increases:<br>
+      • <strong style="color:var(--accent-green);">Assets & Expenses</strong> → Normal Debit Balance (increase on LEFT)<br>
+      • <strong style="color:var(--accent-red);">Liabilities, Equity & Revenue</strong> → Normal Credit Balance (increase on RIGHT)<br>
+      <div class="rule">Balance = Total Debits − Total Credits (for debit-normal) OR Total Credits − Total Debits (for credit-normal)</div>
+    </div>
+
+    <div class="ledger-grid">
+      ${Object.entries(ledger).map(([name,data])=>{
+        const totalDr = data.debit.reduce((s,e)=>s+e.amt,0);
+        const totalCr = data.credit.reduce((s,e)=>s+e.amt,0);
+        const normalDr = ['asset','expense'].includes(data.type);
+        const bal = normalDr ? totalDr-totalCr : totalCr-totalDr;
+        const balSide = normalDr?'Dr':'Cr';
+        const hasEntries = data.debit.length>0||data.credit.length>1;
+        return `
+        <div class="t-account ${hasEntries?'highlighted':''}">
+          <div class="t-header">
+            <span>${name}</span>
+            <span class="account-type-badge ${typeMap[data.type]||'badge-asset'}">${data.type.toUpperCase()}</span>
+          </div>
+          <div class="t-body">
+            <div class="t-side">
+              <div class="t-side-label">Debit (Dr)</div>
+              ${data.debit.length===0?'<div class="t-entry" style="color:var(--text-dim);">—</div>':
+                data.debit.map(e=>`<div class="t-entry"><span style="color:var(--text-dim);font-size:0.65rem;">${e.ref}</span> $${e.amt.toLocaleString()}</div>`).join('')}
+              ${totalDr>0?`<div style="border-top:1px solid rgba(255,255,255,0.1);margin-top:4px;padding-top:3px;font-size:0.7rem;font-weight:700;color:var(--accent-blue);text-align:right;">$${totalDr.toLocaleString()}</div>`:''}
+            </div>
+            <div class="t-divider"></div>
+            <div class="t-side">
+              <div class="t-side-label">Credit (Cr)</div>
+              ${data.credit.length===0?'<div class="t-entry" style="color:var(--text-dim);">—</div>':
+                data.credit.filter(e=>e.amt>0).map(e=>`<div class="t-entry"><span style="color:var(--text-dim);font-size:0.65rem;">${e.ref}</span> $${e.amt.toLocaleString()}</div>`).join('')}
+              ${totalCr>0?`<div style="border-top:1px solid rgba(255,255,255,0.1);margin-top:4px;padding-top:3px;font-size:0.7rem;font-weight:700;color:var(--accent-purple);text-align:right;">$${totalCr.toLocaleString()}</div>`:''}
+            </div>
+          </div>
+          <div class="t-balance">
+            <span style="font-size:0.65rem;color:var(--text-dim);">Balance (${balSide}):</span>
+            <span class="t-bal-num">${bal>0?'$'+bal.toLocaleString():bal<0?'<span style="color:var(--accent-red);">-$'+Math.abs(bal).toLocaleString()+'</span>':'$0'}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn secondary" onclick="showAuditTrail()">🔍 Audit Trail</button>
+      <button class="rpg-btn primary" onclick="completeStage(2)">✅ Ledger Posted! Continue →</button>
+    </div>
+  `;
+}
+
+// ================================================================
+// STAGE 3 — TRIAL BALANCE
+// ================================================================
+function stageTrialBalance(){
+  showPanel('transactionPanel');
+  const panel = document.getElementById('transactionPanel');
+
+  const ledger = G.ledger;
+  const rows = [];
+  let totalDr = 0, totalCr = 0;
+
+  Object.entries(ledger).forEach(([name,data])=>{
+    const dr = data.debit.reduce((s,e)=>s+e.amt,0);
+    const cr = data.credit.reduce((s,e)=>s+e.amt,0);
+    const normalDr = ['asset','expense'].includes(data.type);
+    const bal = normalDr ? dr-cr : cr-dr;
+    if(bal!==0){
+      if(normalDr){ totalDr+=bal; rows.push({name,dr:bal,cr:0}); }
+      else{ totalCr+=bal; rows.push({name,dr:0,cr:bal}); }
+    }
+  });
+
+  G.trialBalance = { debits:totalDr, credits:totalCr };
+  const balanced = totalDr===totalCr;
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">⚖️</div>
+      <div>
+        <div class="panel-title">Unadjusted Trial Balance</div>
+        <div class="panel-subtitle">${COMPANY.name} — ${COMPANY.period} — Before adjusting entries</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📚 What is a Trial Balance?</div>
+      A <strong>Trial Balance</strong> is a list of ALL ledger account balances at a specific date. 
+      Its purpose: verify that <strong>Total Debits = Total Credits</strong>. If they don't match, 
+      there's an error somewhere in the journals or posting.<br>
+      <strong>It does NOT prove everything is correct</strong> — just that the math balances!<br>
+      <div class="rule">🔑 This is the checkpoint BEFORE we make any period-end adjustments.</div>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;">
+      <div style="background:rgba(68,136,255,0.1);padding:12px 16px;font-weight:700;font-size:0.9rem;color:var(--accent-blue);">
+        ${COMPANY.name} — Unadjusted Trial Balance — ${COMPANY.period}
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:rgba(255,255,255,0.03);">
+            <th style="padding:10px 14px;text-align:left;font-size:0.75rem;color:var(--text-secondary);border-bottom:1px solid var(--border);">Account</th>
+            <th style="padding:10px 14px;text-align:right;font-size:0.75rem;color:var(--accent-blue);border-bottom:1px solid var(--border);">Debit ($)</th>
+            <th style="padding:10px 14px;text-align:right;font-size:0.75rem;color:var(--accent-purple);border-bottom:1px solid var(--border);">Credit ($)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>`
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+            <td style="padding:8px 14px;font-size:0.85rem;">${r.name}</td>
+            <td style="padding:8px 14px;text-align:right;font-size:0.85rem;color:${r.dr?'var(--accent-blue)':'var(--text-dim)'};">${r.dr?'$'+r.dr.toLocaleString():''}</td>
+            <td style="padding:8px 14px;text-align:right;font-size:0.85rem;color:${r.cr?'var(--accent-purple)':'var(--text-dim)'};">${r.cr?'$'+r.cr.toLocaleString():''}</td>
+          </tr>`).join('')}
+          <tr style="background:rgba(240,192,64,0.08);border-top:2px solid var(--accent-gold);">
+            <td style="padding:10px 14px;font-weight:800;font-size:0.9rem;color:var(--accent-gold);">TOTALS</td>
+            <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:var(--accent-blue);">$${totalDr.toLocaleString()}</td>
+            <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:var(--accent-purple);">$${totalCr.toLocaleString()}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="padding:12px 16px;background:rgba(${balanced?'0,230,118':'255,68,68'},0.1);border-top:1px solid var(--border);font-size:0.85rem;font-weight:700;color:${balanced?'var(--accent-green)':'var(--accent-red)'};">
+        ${balanced?'✅ BALANCED — Debits ($'+totalDr.toLocaleString()+') = Credits ($'+totalCr.toLocaleString()+') — Ready for adjustments!':'❌ UNBALANCED — Find the error before proceeding!'}
+      </div>
+    </div>
+
+    <div class="info-box" style="background:rgba(187,134,252,0.05);border-color:rgba(187,134,252,0.25);">
+      <div class="info-title" style="color:var(--accent-purple);">⚠️ What the Trial Balance Does NOT Tell You</div>
+      Even a balanced trial balance may have errors:<br>
+      • A transaction was <strong>not recorded at all</strong><br>
+      • A transaction was <strong>recorded twice</strong><br>
+      • <strong>Wrong accounts</strong> were used (but same amount on both sides)<br>
+      • The amount was the same error on both Dr and Cr sides (compensating errors)<br>
+      That's why we need <strong>adjusting entries</strong> next!
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn primary" onclick="completeStage(3)">✅ Trial Balance Complete! → Adjusting Entries</button>
+    </div>
+  `;
+}
+
+// ================================================================
+// STAGE 4 — ADJUSTING ENTRIES
+// ================================================================
+function stageAdjusting(){
+  showPanel('transactionPanel');
+  const panel = document.getElementById('transactionPanel');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">🔧</div>
+      <div>
+        <div class="panel-title">Adjusting Journal Entries</div>
+        <div class="panel-subtitle">Period-end adjustments — Accrual Accounting in action</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📚 Why Adjusting Entries?</div>
+      Under <strong>Accrual Accounting</strong>, some revenues are <strong>earned</strong> but not yet recorded,
+      and some expenses are <strong>incurred</strong> but not yet recorded. We fix this at period-end.<br><br>
+      <strong>Types of adjustments:</strong><br>
+      • <strong style="color:var(--accent-orange);">Deferred Expenses</strong> (Prepaid → Expense used up)<br>
+      • <strong style="color:var(--accent-blue);">Deferred Revenue</strong> (Unearned → Revenue earned)<br>
+      • <strong style="color:var(--accent-red);">Accrued Expenses</strong> (Expense incurred, not yet paid)<br>
+      • <strong style="color:var(--accent-green);">Accrued Revenue</strong> (Revenue earned, not yet received)<br>
+      • <strong style="color:var(--accent-purple);">Depreciation</strong> (Allocate asset cost over time)<br>
+      <div class="rule">🔑 Adjusting entries NEVER involve Cash — they fix the non-cash accounts!</div>
+    </div>
+
+    ${ADJUSTING_ENTRIES.map((adj,i)=>`
+    <div class="je-builder" id="adj_${i}">
+      <div class="je-title">🔧 Adjustment ${i+1}: ${adj.description}</div>
+      <div style="background:rgba(240,192,64,0.08);border-radius:8px;padding:12px;margin-bottom:12px;font-size:0.85rem;">
+        <strong style="color:var(--accent-gold);">Scenario:</strong> ${adj.scenario}<br>
+        <strong style="color:var(--accent-cyan);">Calculation:</strong> ${adj.calculation}<br>
+        <strong style="color:var(--accent-green);">Type:</strong> ${adj.type.toUpperCase()}
+      </div>
+      ${buildAdjustingForm(adj,i)}
+    </div>
+    `).join('')}
+
+    <div class="btn-row">
+      <button class="rpg-btn primary" onclick="submitAllAdjusting()">⚔️ Apply All Adjustments!</button>
+    </div>
+  `;
+}
+
+function buildAdjustingForm(adj,i){
+  const accounts = Object.keys(G.ledger);
+  const cfg = DIFF_CONFIG[G.diff];
+  return `
+    <table class="je-table" style="margin-bottom:10px;">
+      <thead><tr>
+        <th width="80">Date</th><th>Account</th><th>Ref</th><th width="120">Debit</th><th width="120">Credit</th>
+      </tr></thead>
+      <tbody>
+        <tr class="dr-row"><td style="color:var(--text-dim);">Jan 31</td>
+          <td><span class="dr-badge">Dr</span>
+            <select class="je-input" id="adjDr_${i}" style="width:calc(100% - 40px);margin-left:6px;">
+              <option value="">— Debit Account —</option>
+              ${accounts.map(a=>`<option value="${a}">${a}</option>`).join('')}
+            </select>
+          </td>
+          <td>AJE</td>
+          <td><input class="je-input" type="number" id="adjDrAmt_${i}" placeholder="0.00" min="0"></td>
+          <td>—</td>
+        </tr>
+        <tr class="cr-row"><td></td>
+          <td class="cr-indent"><span class="cr-badge">Cr</span>
+            <select class="je-input" id="adjCr_${i}" style="width:calc(100% - 40px);margin-left:6px;">
+              <option value="">— Credit Account —</option>
+              ${accounts.map(a=>`<option value="${a}">${a}</option>`).join('')}
+            </select>
+          </td>
+          <td>AJE</td>
+          <td>—</td>
+          <td><input class="je-input" type="number" id="adjCrAmt_${i}" placeholder="0.00" min="0"></td>
+        </tr>
+      </tbody>
+    </table>
+    ${cfg.hints?`<div class="info-box" style="margin:0 0 8px;"><strong>💡 Hint:</strong> ${adj.explanation}</div>`:''}
+    <div id="adjStatus_${i}" style="font-size:0.8rem;height:20px;"></div>
+  `;
+}
+
+function submitAllAdjusting(){
+  let allCorrect = true;
+  const cfg = DIFF_CONFIG[G.diff];
+
+  ADJUSTING_ENTRIES.forEach((adj,i)=>{
+    const drAcc = document.getElementById(`adjDr_${i}`)?.value||'';
+    const crAcc = document.getElementById(`adjCr_${i}`)?.value||'';
+    const drAmt = parseFloat(document.getElementById(`adjDrAmt_${i}`)?.value)||0;
+    const crAmt = parseFloat(document.getElementById(`adjCrAmt_${i}`)?.value)||0;
+    const statusEl = document.getElementById(`adjStatus_${i}`);
+
+    const correctDr = drAcc===adj.debit;
+    const correctCr = crAcc===adj.credit;
+    const correctAmt = drAmt===adj.amount && crAmt===adj.amount;
+    const balanced = drAmt===crAmt&&drAmt>0;
+
+    let ok = cfg.mult>=3 ? correctDr&&correctCr&&correctAmt : correctDr&&correctCr&&balanced;
+
+    if(ok){
+      // Post to ledger
+      if(!G.ledger[adj.debit]){
+        G.ledger[adj.debit]={ debit:[], credit:[], type:'expense' };
+      }
+      if(!G.ledger[adj.credit]){
+        G.ledger[adj.credit]={ debit:[], credit:[], type:'asset' };
+      }
+      G.ledger[adj.debit].debit.push({ ref:adj.id, amt:adj.amount });
+      G.ledger[adj.credit].credit.push({ ref:adj.id, amt:adj.amount });
+      if(statusEl){ statusEl.textContent='✅ Correct! '+adj.explanation; statusEl.style.color='var(--accent-green)'; }
+    } else {
+      allCorrect = false;
+      if(statusEl){
+        statusEl.textContent=`❌ Should be: Dr. ${adj.debit} / Cr. ${adj.credit} = $${adj.amount.toLocaleString()}`;
+        statusEl.style.color='var(--accent-red)';
+      }
+    }
+    G.totalAnswered++;
+    if(ok) G.totalCorrect++;
+  });
+
+  if(allCorrect){
+    G.xp+=200; G.gold+=20; G.score+=2000;
+    updateHUD();
+    toast('✅ All adjusting entries correct! Ledger updated!','success');
+    setTimeout(()=>completeStage(4), 1500);
+  } else {
+    G.playerHP = Math.max(0, G.playerHP-15);
+    updateHUD();
+    toast('❌ Some adjustments are wrong. Review the hints!','error');
+  }
+}
+
+// ================================================================
+// STAGE 5 — ADJUSTED TRIAL BALANCE
+// ================================================================
+function stageAdjustedTB(){
+  showPanel('transactionPanel');
+  const panel = document.getElementById('transactionPanel');
+
+  const ledger = G.ledger;
+  const rows = [];
+  let totalDr = 0, totalCr = 0;
+
+  Object.entries(ledger).forEach(([name,data])=>{
+    const dr = data.debit.reduce((s,e)=>s+e.amt,0);
+    const cr = data.credit.reduce((s,e)=>s+e.amt,0);
+    const normalDr = ['asset','expense'].includes(data.type);
+    const bal = normalDr ? dr-cr : cr-dr;
+    if(bal!==0){
+      if(normalDr){ totalDr+=bal; rows.push({name,dr:bal,cr:0,type:data.type}); }
+      else{ totalCr+=bal; rows.push({name,dr:0,cr:bal,type:data.type}); }
+    }
+  });
+
+  const balanced = totalDr===totalCr;
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">📋</div>
+      <div>
+        <div class="panel-title">Adjusted Trial Balance</div>
+        <div class="panel-subtitle">After all adjusting entries — ready for financial statements</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📚 Adjusted vs Unadjusted Trial Balance</div>
+      The <strong>Adjusted Trial Balance</strong> includes all adjusting entries. 
+      It's the <strong>final source</strong> for preparing financial statements.
+      Every number here flows directly into the Income Statement or Balance Sheet.<br>
+      <div class="rule">🔑 Income Statement accounts: Revenue & Expenses | Balance Sheet accounts: Assets, Liabilities & Equity</div>
+    </div>
+
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;">
+      <div style="background:rgba(0,230,118,0.1);padding:12px 16px;font-weight:700;font-size:0.9rem;color:var(--accent-green);">
+        ${COMPANY.name} — Adjusted Trial Balance — ${COMPANY.period}
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:rgba(255,255,255,0.03);">
+            <th style="padding:10px 14px;text-align:left;font-size:0.75rem;color:var(--text-secondary);border-bottom:1px solid var(--border);">Account</th>
+            <th style="padding:10px 14px;text-align:center;font-size:0.75rem;color:var(--text-secondary);border-bottom:1px solid var(--border);">Category</th>
+            <th style="padding:10px 14px;text-align:right;font-size:0.75rem;color:var(--accent-blue);border-bottom:1px solid var(--border);">Debit</th>
+            <th style="padding:10px 14px;text-align:right;font-size:0.75rem;color:var(--accent-purple);border-bottom:1px solid var(--border);">Credit</th>
+            <th style="padding:10px 14px;text-align:center;font-size:0.75rem;color:var(--text-secondary);border-bottom:1px solid var(--border);">Goes To</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r=>{
+            const goesTo = ['revenue','expense'].includes(r.type)?'📈 Inc. Stmt':'🏦 Bal. Sheet';
+            const typeColor = r.type==='asset'?'var(--accent-green)':r.type==='liability'?'var(--accent-red)':r.type==='equity'?'var(--accent-purple)':r.type==='revenue'?'var(--accent-blue)':'var(--accent-orange)';
+            return `<tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+              <td style="padding:8px 14px;font-size:0.85rem;">${r.name}</td>
+              <td style="padding:8px 14px;text-align:center;font-size:0.7rem;font-weight:600;color:${typeColor};">${r.type.toUpperCase()}</td>
+              <td style="padding:8px 14px;text-align:right;font-size:0.85rem;color:${r.dr?'var(--accent-blue)':'var(--text-dim)'};">${r.dr?'$'+r.dr.toLocaleString():''}</td>
+              <td style="padding:8px 14px;text-align:right;font-size:0.85rem;color:${r.cr?'var(--accent-purple)':'var(--text-dim)'};">${r.cr?'$'+r.cr.toLocaleString():''}</td>
+              <td style="padding:8px 14px;text-align:center;font-size:0.75rem;color:var(--text-secondary);">${goesTo}</td>
+            </tr>`;
+          }).join('')}
+          <tr style="background:rgba(0,230,118,0.08);border-top:2px solid var(--accent-green);">
+            <td colspan="2" style="padding:10px 14px;font-weight:800;font-size:0.9rem;color:var(--accent-green);">TOTALS</td>
+            <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:var(--accent-blue);">$${totalDr.toLocaleString()}</td>
+            <td style="padding:10px 14px;text-align:right;font-weight:800;font-size:0.95rem;color:var(--accent-purple);">$${totalCr.toLocaleString()}</td>
+            <td style="padding:10px 14px;text-align:center;font-weight:700;color:${balanced?'var(--accent-green)':'var(--accent-red)'};">${balanced?'✅ BALANCED':'❌ ERROR'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn primary" onclick="completeStage(5)">✅ Prepare Financial Statements →</button>
+    </div>
+  `;
+}
+
+// ================================================================
+// STAGE 6 — FINANCIAL STATEMENTS
+// ================================================================
+function stageFinancialStatements(){
+  const ledger = G.ledger;
+
+  // Calculate from ledger
+  const getBal = (name)=>{
+    if(!ledger[name]) return 0;
+    const dr = ledger[name].debit.reduce((s,e)=>s+e.amt,0);
+    const cr = ledger[name].credit.reduce((s,e)=>s+e.amt,0);
+    const normalDr = ['asset','expense'].includes(ledger[name].type);
+    return normalDr ? dr-cr : cr-dr;
+  };
+
+  const revenue = getBal('Service Revenue');
+  const salariesExp = getBal('Salaries Expense');
+  const rentExp = getBal('Rent Expense');
+  const suppliesExp = getBal('Supplies Expense');
+  const deprExp = getBal('Depreciation Expense');
+  const totalExpenses = salariesExp+rentExp+suppliesExp+deprExp;
+  const netIncome = revenue - totalExpenses;
+  G.netIncome = netIncome;
+
+  const cash = getBal('Cash');
+  const ar = getBal('Accounts Receivable');
+  const supplies = getBal('Supplies');
+  const equipment = getBal('Equipment');
+  const accumDepr = getBal('Accumulated Depreciation');
+  const netEquip = equipment - accumDepr;
+  const totalAssets = cash+ar+supplies+netEquip;
+
+  const ap = getBal('Accounts Payable');
+  const capital = getBal("Owner's Capital");
+  const totalEquity = capital + netIncome;
+  const totalLiabEquity = ap + totalEquity;
+
+  showPanel('fsPanel');
+  const panel = document.getElementById('fsPanel');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">📊</div>
+      <div>
+        <div class="panel-title">Financial Statements — ${COMPANY.name}</div>
+        <div class="panel-subtitle">${COMPANY.period} — Generated from the Adjusted Trial Balance</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📚 The Reporting Order Matters!</div>
+      Financial statements must be prepared in THIS ORDER because each feeds the next:<br>
+      <strong>1️⃣ Income Statement</strong> → Net Income feeds into #2<br>
+      <strong>2️⃣ Statement of Owner's Equity</strong> → Ending capital feeds into #3<br>
+      <strong>3️⃣ Balance Sheet</strong> → Must balance: Assets = Liabilities + Equity<br>
+      <strong>4️⃣ Cash Flow Statement</strong> → Explains changes in cash
+    </div>
+
+    <div class="fs-grid">
+
+      <!-- INCOME STATEMENT -->
+      <div class="fs-card">
+        <div class="fs-card-header income">📈 Income Statement — ${COMPANY.period}</div>
+        <div class="fs-body">
+          <div class="fs-section">
+            <div class="fs-section-title">Revenue</div>
+            <div class="fs-row"><span class="lbl">Service Revenue</span><span class="val pos">$${revenue.toLocaleString()}</span></div>
+            <div class="fs-row fs-subtotal"><span class="lbl">Total Revenue</span><span class="val pos">$${revenue.toLocaleString()}</span></div>
+          </div>
+          <div class="fs-section">
+            <div class="fs-section-title">Operating Expenses</div>
+            <div class="fs-row"><span class="lbl">Salaries Expense</span><span class="val neg">$(${salariesExp.toLocaleString()})</span></div>
+            <div class="fs-row"><span class="lbl">Rent Expense</span><span class="val neg">$(${rentExp.toLocaleString()})</span></div>
+            <div class="fs-row"><span class="lbl">Supplies Expense</span><span class="val neg">$(${suppliesExp.toLocaleString()})</span></div>
+            <div class="fs-row"><span class="lbl">Depreciation Expense</span><span class="val neg">$(${deprExp.toLocaleString()})</span></div>
+            <div class="fs-row fs-subtotal"><span class="lbl">Total Expenses</span><span class="val neg">$(${totalExpenses.toLocaleString()})</span></div>
+          </div>
+          <div class="fs-total">
+            <span>NET INCOME</span>
+            <span class="total-val net-income">$${netIncome.toLocaleString()}</span>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:8px;">↗️ This NET INCOME flows into the Statement of Owner's Equity below</div>
+        </div>
+      </div>
+
+      <!-- OWNER'S EQUITY -->
+      <div class="fs-card">
+        <div class="fs-card-header equity">👑 Statement of Owner's Equity — ${COMPANY.period}</div>
+        <div class="fs-body">
+          <div class="fs-section">
+            <div class="fs-row"><span class="lbl">Owner's Capital, Jan 1</span><span class="val neu">$0</span></div>
+            <div class="fs-row"><span class="lbl">+ Investment by Owner</span><span class="val pos">$${capital.toLocaleString()}</span></div>
+            <div class="fs-row"><span class="lbl">+ Net Income (from IS)</span><span class="val pos">$${netIncome.toLocaleString()}</span></div>
+            <div class="fs-row"><span class="lbl">− Owner's Drawings</span><span class="val neg">$0</span></div>
+          </div>
+          <div class="fs-total">
+            <span>Owner's Capital, Jan 31</span>
+            <span class="total-val net-income">$${totalEquity.toLocaleString()}</span>
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-dim);margin-top:8px;">↗️ This ENDING CAPITAL flows into the Balance Sheet below</div>
+        </div>
+      </div>
+
+      <!-- BALANCE SHEET -->
+      <div class="fs-card">
+        <div class="fs-card-header balance">🏦 Balance Sheet — January 31, 2025</div>
+        <div class="fs-body">
+          <div class="fs-section">
+            <div class="fs-section-title" style="color:var(--accent-green);">ASSETS</div>
+            <div class="fs-section-title" style="font-size:0.65rem;">Current Assets</div>
+            <div class="fs-row"><span class="lbl">Cash</span><span class="val pos">$${cash.toLocaleString()}</span></div>
+            <div class="fs-row"><span class="lbl">Accounts Receivable</span><span class="val pos">$${ar.toLocaleString()}</span></div>
+            <div class="fs-row"><span class="lbl">Supplies</span><span class="val pos">$${supplies.toLocaleString()}</span></div>
+            <div class="fs-section-title" style="font-size:0.65rem;margin-top:6px;">Non-Current Assets</div>
+            <div class="fs-row"><span class="lbl">Equipment</span><span class="val neu">$${equipment.toLocaleString()}</span></div>
+            <div class="fs-row"><span class="lbl" style="padding-left:12px;">Less: Accum. Depr.</span><span class="val neg">$(${accumDepr.toLocaleString()})</span></div>
+            <div class="fs-row"><span class="lbl" style="font-style:italic;">Net Equipment</span><span class="val pos">$${netEquip.toLocaleString()}</span></div>
+          </div>
+          <div class="fs-total"><span>TOTAL ASSETS</span><span class="total-val net-income">$${totalAssets.toLocaleString()}</span></div>
+          <div class="fs-section" style="margin-top:12px;">
+            <div class="fs-section-title" style="color:var(--accent-red);">LIABILITIES</div>
+            <div class="fs-row"><span class="lbl">Accounts Payable</span><span class="val neg">$${ap.toLocaleString()}</span></div>
+            <div class="fs-row fs-subtotal"><span class="lbl">Total Liabilities</span><span class="val neg">$${ap.toLocaleString()}</span></div>
+          </div>
+          <div class="fs-section">
+            <div class="fs-section-title" style="color:var(--accent-purple);">OWNER'S EQUITY</div>
+            <div class="fs-row"><span class="lbl">Owner's Capital (ending)</span><span class="val" style="color:var(--accent-purple);">$${totalEquity.toLocaleString()}</span></div>
+          </div>
+          <div class="fs-total">
+            <span>TOTAL L + OE</span>
+            <span class="total-val net-income">$${totalLiabEquity.toLocaleString()}</span>
+          </div>
+          <div style="margin-top:8px;padding:8px;border-radius:6px;background:rgba(${totalAssets===totalLiabEquity?'0,230,118':'255,68,68'},0.1);font-size:0.75rem;font-weight:700;color:${totalAssets===totalLiabEquity?'var(--accent-green)':'var(--accent-red)'};">
+            ${totalAssets===totalLiabEquity?'✅ BALANCE SHEET BALANCES! Assets ($'+totalAssets.toLocaleString()+') = Liabilities + Equity ($'+totalLiabEquity.toLocaleString()+')':'❌ DOES NOT BALANCE — Check your work!'}
+          </div>
+        </div>
+      </div>
+
+      <!-- CASH FLOW SUMMARY -->
+      <div class="fs-card">
+        <div class="fs-card-header cashflow">💵 Cash Flow Summary — ${COMPANY.period}</div>
+        <div class="fs-body">
+          <div class="fs-section">
+            <div class="fs-section-title">Operating Activities</div>
+            <div class="fs-row"><span class="lbl">Cash received from clients</span><span class="val pos">$8,000</span></div>
+            <div class="fs-row"><span class="lbl">Rent paid</span><span class="val neg">$(3,000)</span></div>
+            <div class="fs-row"><span class="lbl">Salaries paid</span><span class="val neg">$(5,000)</span></div>
+            <div class="fs-row fs-subtotal"><span class="lbl">Net Operating Cash</span><span class="val neg">$0</span></div>
+          </div>
+          <div class="fs-section">
+            <div class="fs-section-title">Investing Activities</div>
+            <div class="fs-row"><span class="lbl">Equipment purchased</span><span class="val neg">$(15,000)</span></div>
+            <div class="fs-row fs-subtotal"><span class="lbl">Net Investing Cash</span><span class="val neg">$(15,000)</span></div>
+          </div>
+          <div class="fs-section">
+            <div class="fs-section-title">Financing Activities</div>
+            <div class="fs-row"><span class="lbl">Owner investment</span><span class="val pos">$50,000</span></div>
+            <div class="fs-row fs-subtotal"><span class="lbl">Net Financing Cash</span><span class="val pos">$50,000</span></div>
+          </div>
+          <div class="fs-total"><span>Ending Cash Balance</span><span class="total-val" style="color:var(--accent-cyan);">$35,000</span></div>
+          <div style="font-size:0.7rem;color:var(--accent-green);margin-top:6px;">✅ Matches Cash on Balance Sheet: $${cash.toLocaleString()}</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="info-box" style="background:rgba(240,192,64,0.05);border-color:rgba(240,192,64,0.3);">
+      <div class="info-title" style="color:var(--accent-gold);">🔍 Complete Audit Trail — From Event to Statement</div>
+      <strong>Every number above can be traced back to an original source document!</strong><br>
+      The $${revenue.toLocaleString()} Service Revenue ← Journal Entry T003 ← Service Agreement #SA-008 ← Apex Corp contract<br>
+      The $${cash.toLocaleString()} Cash ← Multiple journal entries (T001-T007) ← Deposit slips, receipts, payroll register
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn secondary" onclick="showAuditTrail()">🔍 Full Audit Trail</button>
+      <button class="rpg-btn primary" onclick="completeStage(6)">✅ Financial Statements Done! → Closing Entries</button>
+    </div>
+  `;
+}
+
+// ================================================================
+// STAGE 7 — CLOSING ENTRIES & POST-CLOSING TB
+// ================================================================
+function stageClosingEntries(){
+  const netIncome = G.netIncome;
+  const ledger = G.ledger;
+  const getBal = (name)=>{
+    if(!ledger[name]) return 0;
+    const dr = ledger[name].debit.reduce((s,e)=>s+e.amt,0);
+    const cr = ledger[name].credit.reduce((s,e)=>s+e.amt,0);
+    const normalDr = ['asset','expense'].includes(ledger[name].type);
+    return normalDr ? dr-cr : cr-dr;
+  };
+
+  const revenue = getBal('Service Revenue');
+  const salariesExp = getBal('Salaries Expense');
+  const rentExp = getBal('Rent Expense');
+  const suppliesExp = getBal('Supplies Expense');
+  const deprExp = getBal('Depreciation Expense');
+  const totalExp = salariesExp+rentExp+suppliesExp+deprExp;
+  const capital = getBal("Owner's Capital");
+  const newCapital = capital + netIncome;
+  G.ownerCapital = newCapital;
+
+  showPanel('transactionPanel');
+  const panel = document.getElementById('transactionPanel');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">🔒</div>
+      <div>
+        <div class="panel-title">Closing Entries — End of Period</div>
+        <div class="panel-subtitle">Reset temporary accounts & prepare for next period</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">📚 Why Closing Entries?</div>
+      <strong>Temporary accounts</strong> (Revenue, Expenses, Income Summary, Drawings) need to be 
+      <strong>reset to zero</strong> at the end of each period so the next period starts fresh.<br>
+      <strong>Permanent accounts</strong> (Assets, Liabilities, Owner's Equity) carry their balances forward.<br><br>
+      <strong>4-Step Closing Process:</strong><br>
+      <strong style="color:var(--accent-blue);">Step 1:</strong> Close ALL Revenue → Debit Revenue, Credit Income Summary<br>
+      <strong style="color:var(--accent-purple);">Step 2:</strong> Close ALL Expenses → Debit Income Summary, Credit each Expense<br>
+      <strong style="color:var(--accent-green);">Step 3:</strong> Close Income Summary → If NI: Dr Income Summary, Cr Owner's Capital<br>
+      <strong style="color:var(--accent-orange);">Step 4:</strong> Close Drawings → Dr Owner's Capital, Cr Drawings (none here)
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+
+      <div class="je-builder">
+        <div class="je-title" style="color:var(--accent-blue);">📝 Entry 1: Close Revenue</div>
+        <table class="je-table">
+          <tbody>
+            <tr class="dr-row"><td>Jan 31</td><td><span class="dr-badge">Dr</span> Service Revenue</td><td></td><td>$${revenue.toLocaleString()}</td><td>—</td></tr>
+            <tr class="cr-row"><td></td><td class="cr-indent"><span class="cr-badge">Cr</span> Income Summary</td><td></td><td>—</td><td>$${revenue.toLocaleString()}</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:8px;">
+          📖 Revenue account is ZEROED out. Balance transfers to Income Summary.
+        </div>
+      </div>
+
+      <div class="je-builder">
+        <div class="je-title" style="color:var(--accent-purple);">📝 Entry 2: Close All Expenses</div>
+        <table class="je-table">
+          <tbody>
+            <tr class="dr-row"><td>Jan 31</td><td><span class="dr-badge">Dr</span> Income Summary</td><td></td><td>$${totalExp.toLocaleString()}</td><td>—</td></tr>
+            <tr class="cr-row"><td></td><td class="cr-indent"><span class="cr-badge">Cr</span> Salaries Expense</td><td></td><td>—</td><td>$${salariesExp.toLocaleString()}</td></tr>
+            <tr class="cr-row"><td></td><td class="cr-indent"><span class="cr-badge">Cr</span> Rent Expense</td><td></td><td>—</td><td>$${rentExp.toLocaleString()}</td></tr>
+            <tr class="cr-row"><td></td><td class="cr-indent"><span class="cr-badge">Cr</span> Supplies Expense</td><td></td><td>—</td><td>$${suppliesExp.toLocaleString()}</td></tr>
+            <tr class="cr-row"><td></td><td class="cr-indent"><span class="cr-badge">Cr</span> Depreciation Exp</td><td></td><td>—</td><td>$${deprExp.toLocaleString()}</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:8px;">
+          📖 All expense accounts ZEROED. Income Summary now shows net result.
+        </div>
+      </div>
+
+      <div class="je-builder">
+        <div class="je-title" style="color:var(--accent-green);">📝 Entry 3: Close Income Summary</div>
+        <table class="je-table">
+          <tbody>
+            <tr class="dr-row"><td>Jan 31</td><td><span class="dr-badge">Dr</span> Income Summary</td><td></td><td>$${netIncome.toLocaleString()}</td><td>—</td></tr>
+            <tr class="cr-row"><td></td><td class="cr-indent"><span class="cr-badge">Cr</span> Owner's Capital</td><td></td><td>—</td><td>$${netIncome.toLocaleString()}</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:8px;">
+          📖 Net Income ($${netIncome.toLocaleString()}) transferred to permanent Owner's Capital.
+        </div>
+      </div>
+
+      <div class="je-builder">
+        <div class="je-title" style="color:var(--accent-orange);">📝 Entry 4: Close Drawings</div>
+        <div style="padding:20px;text-align:center;color:var(--text-dim);font-size:0.85rem;">
+          ✅ No drawings made in January.<br>
+          This entry is $0 — skip!
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--bg-card);border:2px solid var(--accent-gold);border-radius:12px;padding:16px;margin-bottom:14px;">
+      <div style="font-size:1rem;font-weight:800;color:var(--accent-gold);margin-bottom:12px;">📋 Post-Closing Trial Balance — January 31, 2025</div>
+      <div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:10px;">Only PERMANENT accounts remain (Revenue & Expense accounts = $0 after closing)</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="padding:8px 12px;text-align:left;font-size:0.75rem;color:var(--text-secondary);border-bottom:1px solid var(--border);">Account (Permanent Only)</th>
+          <th style="padding:8px 12px;text-align:right;font-size:0.75rem;color:var(--accent-blue);border-bottom:1px solid var(--border);">Debit</th>
+          <th style="padding:8px 12px;text-align:right;font-size:0.75rem;color:var(--accent-purple);border-bottom:1px solid var(--border);">Credit</th>
+        </tr></thead>
+        <tbody>
+          ${[
+            {name:'Cash',dr:getBal('Cash'),cr:0},
+            {name:'Accounts Receivable',dr:getBal('Accounts Receivable'),cr:0},
+            {name:'Supplies',dr:getBal('Supplies'),cr:0},
+            {name:'Equipment',dr:getBal('Equipment'),cr:0},
+            {name:'Accumulated Depreciation',dr:0,cr:getBal('Accumulated Depreciation')},
+            {name:'Accounts Payable',dr:0,cr:getBal('Accounts Payable')},
+            {name:"Owner's Capital (Updated)",dr:0,cr:newCapital}
+          ].map(r=>`<tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+            <td style="padding:7px 12px;font-size:0.82rem;">${r.name}</td>
+            <td style="padding:7px 12px;text-align:right;font-size:0.82rem;color:var(--accent-blue);">${r.dr>0?'$'+r.dr.toLocaleString():''}</td>
+            <td style="padding:7px 12px;text-align:right;font-size:0.82rem;color:var(--accent-purple);">${r.cr>0?'$'+r.cr.toLocaleString():''}</td>
+          </tr>`).join('')}
+          <tr style="background:rgba(240,192,64,0.1);border-top:2px solid var(--accent-gold);">
+            <td style="padding:10px 12px;font-weight:800;color:var(--accent-gold);">TOTALS</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:800;color:var(--accent-blue);">$${(getBal('Cash')+getBal('Accounts Receivable')+getBal('Supplies')+getBal('Equipment')).toLocaleString()}</td>
+            <td style="padding:10px 12px;text-align:right;font-weight:800;color:var(--accent-purple);">$${(getBal('Accumulated Depreciation')+getBal('Accounts Payable')+newCapital).toLocaleString()}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:10px;font-size:0.82rem;color:var(--accent-green);font-weight:700;">
+        ✅ Cycle Complete! Books are clean. Ready for February! 🎉
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn primary" onclick="completeStage(7)">🏆 COMPLETE THE ACCOUNTING CYCLE!</button>
+    </div>
+  `;
+}
+
+// ================================================================
+// AUDIT TRAIL
+// ================================================================
+function showAuditTrail(){
+  showPanel('trailPanel');
+  const panel = document.getElementById('trailPanel');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">🔍</div>
+      <div>
+        <div class="panel-title">Full Audit Trail Map</div>
+        <div class="panel-subtitle">Track every dollar from event → journal → ledger → trial balance → financial statements</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="info-title">🔍 What is an Audit Trail?</div>
+      An <strong>audit trail</strong> is a step-by-step record that allows tracing of financial data 
+      from the <strong>original transaction</strong> to the <strong>final financial statement</strong>. 
+      It's what auditors use to verify that every number in your financial statements is accurate and supported by evidence.
+    </div>
+
+    <div class="trail-container">
+      ${G.journaledTx.length===0?
+        '<div style="text-align:center;padding:40px;color:var(--text-dim);">📝 No transactions journalized yet. Complete some journal entries first!</div>':
+        G.journaledTx.map(tx=>`
+        <div class="trail-tx">
+          <div class="trail-tx-header">
+            <div>
+              <div class="trail-tx-desc">${tx.description}</div>
+              <div style="font-size:0.7rem;color:var(--text-dim);margin-top:2px;">📅 ${tx.date} | 📄 ${tx.sourceDoc.type} #${tx.sourceDoc.number}</div>
+            </div>
+            <div class="trail-tx-amt">$${tx.amount.toLocaleString()}</div>
+          </div>
+          <div class="trail-path">
+
+            <div class="trail-node">
+              <div class="trail-node-box source-doc">
+                <div class="trail-node-icon">🌍</div>
+                <div class="trail-node-label" style="color:var(--accent-orange);">Event</div>
+                <div class="trail-node-value">${tx.description.substring(0,45)}...</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;padding:0 4px;color:var(--accent-orange);">→</div>
+
+            <div class="trail-node">
+              <div class="trail-node-box source-doc">
+                <div class="trail-node-icon">📄</div>
+                <div class="trail-node-label" style="color:var(--accent-orange);">Source Doc</div>
+                <div class="trail-node-value">${tx.sourceDoc.type}<br>#${tx.sourceDoc.number}</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;padding:0 4px;color:var(--accent-blue);">→</div>
+
+            <div class="trail-node">
+              <div class="trail-node-box journal">
+                <div class="trail-node-icon">📝</div>
+                <div class="trail-node-label" style="color:var(--accent-blue);">Journal</div>
+                <div class="trail-node-value">
+                  Dr. ${tx.accounts.debit}<br>
+                  <span style="padding-left:8px;">Cr. ${tx.accounts.credit}</span><br>
+                  $${tx.amount.toLocaleString()}
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;padding:0 4px;color:var(--accent-purple);">→</div>
+
+            <div class="trail-node">
+              <div class="trail-node-box ledger">
+                <div class="trail-node-icon">📒</div>
+                <div class="trail-node-label" style="color:var(--accent-purple);">Ledger</div>
+                <div class="trail-node-value">
+                  ${tx.accounts.debit} T-Acct<br>
+                  +$${tx.amount.toLocaleString()} Dr<br>
+                  ${tx.accounts.credit} T-Acct<br>
+                  +$${tx.amount.toLocaleString()} Cr
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;padding:0 4px;color:var(--accent-cyan);">→</div>
+
+            <div class="trail-node">
+              <div class="trail-node-box tb">
+                <div class="trail-node-icon">⚖️</div>
+                <div class="trail-node-label" style="color:var(--accent-cyan);">Trial Balance</div>
+                <div class="trail-node-value">Included in<br>unadjusted TB<br>totals</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;padding:0 4px;color:var(--accent-green);">→</div>
+
+            <div class="trail-node">
+              <div class="trail-node-box fs">
+                <div class="trail-node-icon">📊</div>
+                <div class="trail-node-label" style="color:var(--accent-green);">Fin. Statement</div>
+                <div class="trail-node-value">${tx.fsImpact.statement}:<br><span style="font-size:0.65rem;">${tx.fsImpact.line}</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="btn-row">
+      <button class="rpg-btn secondary" onclick="showTransactionList()">← Back to Transactions</button>
+    </div>
+  `;
+}
+
+// ================================================================
+// BATTLE ANIMATIONS
+// ================================================================
+function showBattleAnimation(attacker, value){
+  const scene = document.getElementById('battleScene');
+  if(!scene.classList.contains('active')) return;
+
+  const dmg = document.createElement('div');
+  dmg.className = 'dmg-float';
+  dmg.style.color = attacker==='player'?'var(--accent-green)':'var(--accent-red)';
+  dmg.textContent = attacker==='player'?'+$'+value.toLocaleString():'-'+value+'HP';
+
+  const x = attacker==='player' ?
+    document.getElementById('enemyChar').offsetLeft + 60 :
+    document.getElementById('playerChar').offsetLeft + 40;
+  const y = attacker==='player' ?
+    document.getElementById('enemyChar').offsetTop + 60 :
+    document.getElementById('playerChar').offsetTop + 60;
+
+  dmg.style.left = x+'px';
+  dmg.style.top = y+'px';
+  scene.appendChild(dmg);
+  setTimeout(()=>dmg.remove(), 1200);
+
+  // Shake enemy or player
+  const target = attacker==='player'?
+    document.getElementById('enemyChar'):
+    document.getElementById('playerChar');
+  target.style.transform = 'translateX(-15px)';
+  setTimeout(()=>target.style.transform='', 300);
+}
+
+function setEnemyHP(cur, max){
+  const pct = (cur/max)*100;
+  document.getElementById('enemyHP').style.width = pct+'%';
+  document.getElementById('enemyHPText').textContent = cur+' / '+max;
+}
+
+function logAction(msg, type='neutral'){
+  const log = document.getElementById('actionLog');
+  if(!log) return;
+  const entry = document.createElement('div');
+  entry.className = 'log-entry '+type;
+  entry.textContent = msg;
+  log.insertBefore(entry, log.firstChild);
+  while(log.children.length > 4) log.removeChild(log.lastChild);
+}
+
+// ================================================================
+// DIALOGUE
+// ================================================================
+function showDialogue(portrait, name, text, choices){
+  const box = document.getElementById('dialogueBox');
+  const choicesEl = document.getElementById('dlgChoices');
+  const continueEl = document.getElementById('dlgContinue');
+
+  document.getElementById('dlgPortrait').textContent = portrait;
+  document.getElementById('dlgName').textContent = name;
+  document.getElementById('dlgText').textContent = text;
+
+  choicesEl.innerHTML = '';
+  if(choices && choices.length > 0){
+    continueEl.style.display = 'none';
+    choices.forEach(c=>{
+      const btn = document.createElement('button');
+      btn.className = 'dlg-choice';
+      btn.textContent = c.text;
+      btn.onclick = ()=>{ closeDialogue(); if(c.fn) c.fn(); };
+      choicesEl.appendChild(btn);
+    });
+  } else {
+    continueEl.style.display = 'block';
+    box.onclick = closeDialogue;
+  }
+
+  box.classList.add('active');
+}
+
+function closeDialogue(){
+  document.getElementById('dialogueBox').classList.remove('active');
+  document.getElementById('dialogueBox').onclick = null;
+}
+
+// ================================================================
+// STAGE COMPLETION
+// ================================================================
+function completeStage(stageId){
+  if(!G.completedStages.includes(stageId)){
+    G.completedStages.push(stageId);
+  }
+
+  // Unlock next stage
+  if(stageId+1 < STAGES.length){
+    STAGES[stageId+1].unlocked = true;
+  }
+
+  const xpReward = (stageId+1)*150;
+  const goldReward = (stageId+1)*10;
+  G.xp += xpReward;
+  G.gold += goldReward;
+  G.score += xpReward*10;
+  updateHUD();
+  updateCycleTracker();
+  toast(`🏆 Stage ${stageId+1} Complete! +${xpReward}XP +${goldReward}💰`,'gold');
+
+  // Show result screen
+  showStageResult(stageId);
+}
+
+function showStageResult(stageId){
+  const stage = STAGES[stageId];
+  const accuracy = G.totalAnswered>0?Math.round((G.totalCorrect/G.totalAnswered)*100):100;
+
+  const lessons = {
+    0:`📄 SOURCE DOCUMENTS are the START of every audit trail. No document = no entry!`,
+    1:`📝 JOURNAL ENTRIES use DOUBLE-ENTRY: Debits always = Credits. Assets/Expenses increase on DEBIT. Liabilities/Equity/Revenue increase on CREDIT.`,
+    2:`📒 POSTING moves journal entries to LEDGER T-ACCOUNTS. The ledger shows running balances for every account.`,
+    3:`⚖️ TRIAL BALANCE proves Debits = Credits. It's a MATH CHECK, not a complete accuracy check!`,
+    4:`🔧 ADJUSTING ENTRIES fix accounts under ACCRUAL ACCOUNTING. Types: deferrals, accruals, depreciation. They NEVER involve Cash!`,
+    5:`📋 ADJUSTED TRIAL BALANCE is the SOURCE for financial statements. Every number flows from here!`,
+    6:`📊 FINANCIAL STATEMENTS order: Income Statement → Owner's Equity → Balance Sheet. Assets ALWAYS = Liabilities + Equity!`,
+    7:`🔒 CLOSING ENTRIES zero out temporary accounts (Revenue, Expenses) so each period starts fresh. Permanent accounts (Assets, Liabilities, Equity) carry forward!`
+  };
+
+  const panel = document.getElementById('resultScreen');
+  document.getElementById('resultTitle').textContent = stageId===7?'🏆 CYCLE COMPLETE!':'✅ STAGE CLEAR!';
+  document.getElementById('resultTitle').className = 'result-title victory';
+  document.getElementById('resultScore').textContent = `${stage.name} — ${stage.phase}`;
+  document.getElementById('resultStats').innerHTML = `
+    <div class="result-stat"><div class="r-val">${G.xp}</div><div class="r-lbl">Total XP</div></div>
+    <div class="result-stat"><div class="r-val">${accuracy}%</div><div class="r-lbl">Accuracy</div></div>
+    <div class="result-stat"><div class="r-val">${G.gold}</div><div class="r-lbl">💰 Gold</div></div>
+  `;
+  document.getElementById('resultLessons').innerHTML = `
+    <h3>📚 Key Lesson from Stage ${stageId+1}:</h3>
+    <p style="color:var(--text-secondary);">${lessons[stageId]||'Great work completing this stage!'}</p>
+    ${stageId===7?`
+    <hr style="margin:16px 0;border-color:var(--border);">
+    <p style="color:var(--accent-gold);font-weight:700;">🎉 You've mastered the FULL ACCOUNTING CYCLE!</p>
+    <p style="color:var(--text-secondary);font-size:0.82rem;">Transaction → Source Document → Journal Entry → Ledger T-Account → Trial Balance → Adjusting Entries → Adjusted Trial Balance → Financial Statements → Closing Entries → Post-Closing Trial Balance → Repeat! 🔄</p>
+    `:''}
+  `;
+  showScreen('resultScreen');
+}
+
+function continueToNext(){
+  hideScreen('resultScreen');
+  const next = G.currentStage+1;
+  if(next < STAGES.length){
+    G.currentStage = next;
+    loadStage(next);
+  } else {
+    showWorldMap();
+  }
+}
+
+// ================================================================
+// TOAST NOTIFICATIONS
+// ================================================================
+function toast(msg, type=''){
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast '+type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+
+// ================================================================
+// DEFEAT
+// ================================================================
+function showDefeat(){
+  document.getElementById('resultTitle').textContent = '💀 DEFEAT!';
+  document.getElementById('resultTitle').className = 'result-title defeat';
+  document.getElementById('resultScore').textContent = 'Your HP reached zero!';
+  document.getElementById('resultStats').innerHTML = `
+    <div class="result-stat"><div class="r-val">${G.score.toLocaleString()}</div><div class="r-lbl">Final Score</div></div>
+    <div class="result-stat"><div class="r-val">${G.totalCorrect}/${G.totalAnswered}</div><div class="r-lbl">Correct</div></div>
+    <div class="result-stat"><div class="r-val">${G.gold}</div><div class="r-lbl">Gold Kept</div></div>
+  `;
+  document.getElementById('resultLessons').innerHTML = '<h3>💪 Review and try again!</h3>';
+  showScreen('resultScreen');
+}
+
+function goTitle(){
+  hideScreen('resultScreen');
+  document.getElementById('hud').style.display='none';
+  document.getElementById('cycleTracker').style.display='none';
+  document.getElementById('gameArea').classList.remove('active');
+  ['transactionPanel','journalPanel','ledgerPanel','trailPanel','fsPanel','worldMap'].forEach(p=>{
+    document.getElementById(p).classList.remove('active');
+  });
+  document.getElementById('battleScene').classList.remove('active');
+  document.getElementById('skillBar').classList.remove('active');
+  closeDialogue();
+  showScreen('titleScreen');
+}
+
+// ================================================================
+// PLACEHOLDER SKILL HANDLERS
+// ================================================================
+function showJournalBuilder(){ showTransactionList(); }
+function showLedgerPosting(){ showPanel('ledgerPanel'); renderLedger(); }
+function showTrialBalanceCheck(){ stageTrialBalance(); }
+function showFinancialStatements(){ stageFinancialStatements(); }
+function showClosingPanel(){ stageClosingEntries(); }
+
+// ================================================================
+// KEYBOARD
+// ================================================================
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeDialogue();
+});
+
+// Init
+selectDiff('easy');
+</script>
+</body>
+</html>
