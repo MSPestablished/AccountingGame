@@ -846,6 +846,30 @@ const ALL_TRANSACTIONS = [
   }
 ];
 
+const GLOBAL_TRANSACTIONS = [
+  {
+    id: "GT001",
+    date: "Feb 01",
+    sourceDoc: { type: "Global Sales Invoice", number: "INV-2026-001", description: "B2B SaaS deployment for European client" },
+    description: "Rendered global enterprise software configuration services to EuroCorp for $10,000. Under local regulation, we add 10% Output VAT, and the client applies a 2% Creditable Withholding Tax on the gross amount.",
+    amount: 11000,
+    type: "revenue",
+    // Compound journal entry solution array
+    solution: {
+      debits: [
+        { account: "Accounts Receivable", amount: 10780 },
+        { account: "Creditable Withholding Tax", amount: 220 }
+      ],
+      credits: [
+        { account: "Service Revenue", amount: 10000 },
+        { account: "Output VAT", amount: 1000 }
+      ]
+    },
+    boss: { name: "VAT Behemoth", emoji: "🐙", hp: 150 },
+    difficulty: 4
+  }
+];
+
 // Adjusting entries (Step 5)
 const ADJUSTING_ENTRIES = [
   {
@@ -1019,21 +1043,28 @@ function startGame(){
   loadStage(0);
 }
 
-function initLedger(){
+function initLedger() {
   return {
-    "Cash":               { debit:[], credit:[], type:"asset" },
-    "Accounts Receivable":{ debit:[], credit:[], type:"asset" },
-    "Supplies":           { debit:[{ref:"bal",amt:0}], credit:[], type:"asset" },
-    "Equipment":          { debit:[], credit:[], type:"asset" },
-    "Accumulated Depreciation":{ debit:[], credit:[], type:"contra-asset" },
-    "Accounts Payable":   { debit:[], credit:[], type:"liability" },
-    "Owner's Capital":    { debit:[], credit:[], type:"equity" },
-    "Service Revenue":    { debit:[], credit:[], type:"revenue" },
-    "Rent Expense":       { debit:[], credit:[], type:"expense" },
-    "Salaries Expense":   { debit:[], credit:[], type:"expense" },
-    "Supplies Expense":   { debit:[], credit:[], type:"expense" },
-    "Depreciation Expense":{ debit:[], credit:[], type:"expense" },
-    "Income Summary":     { debit:[], credit:[], type:"equity" }
+    "Cash":                        { type: "asset",        debit: [], credit: [] },
+    "Accounts Receivable":         { type: "asset",        debit: [], credit: [] },
+    "Supplies":                    { type: "asset",        debit: [], credit: [] },
+    "Equipment":                   { type: "asset",        debit: [], credit: [] },
+    "Accumulated Depreciation":    { type: "contra-asset", debit: [], credit: [] },
+    "Input VAT":                   { type: "asset",        debit: [], credit: [] },
+    "Creditable Withholding Tax":  { type: "asset",        debit: [], credit: [] },
+    "Accounts Payable":            { type: "liability",    debit: [], credit: [] },
+    "Output VAT":                  { type: "liability",    debit: [], credit: [] },
+    "Withholding Tax Payable":     { type: "liability",    debit: [], credit: [] },
+    "Payroll Payable":             { type: "liability",    debit: [], credit: [] },
+    "Owner's Capital":             { type: "equity",       debit: [], credit: [] },
+    "Income Summary":              { type: "equity",       debit: [], credit: [] },
+    "Service Revenue":             { type: "revenue",      debit: [], credit: [] },
+    "Forex Gain":                  { type: "revenue",      debit: [], credit: [] },
+    "Salaries Expense":            { type: "expense",      debit: [], credit: [] },
+    "Rent Expense":                { type: "expense",      debit: [], credit: [] },
+    "Supplies Expense":            { type: "expense",      debit: [], credit: [] },
+    "Depreciation Expense":        { type: "expense",      debit: [], credit: [] },
+    "Forex Loss":                  { type: "expense",      debit: [], credit: [] }
   };
 }
 
@@ -1277,7 +1308,7 @@ function showTransactionList(){
     <div class="btn-row">
       <button class="rpg-btn secondary" onclick="showAuditTrail()">🔍 View Audit Trail</button>
       ${journaled.length===ALL_TRANSACTIONS.length?
-        `<button class="rpg-btn primary" onclick="completeStage(0)">✅ All Journalized! Continue →</button>`:''}
+        `<button class="rpg-btn primary" onclick="completeStage(${G.currentStage})">✅ All Journalized! Continue →</button>`:''}
     </div>
   `;
 }
@@ -1470,6 +1501,71 @@ function submitJournalEntry(txId){
   }
 }
 
+const EXTRA_GLOBAL_TRANSACTIONS = [
+  {
+    id: "GT002",
+    date: "Feb 10",
+    sourceDoc: { type: "Vendor Invoice Cross-Border", number: "VINV-8819", description: "AWS Cloud Infrastructure Billing" },
+    description: "Received an IT infrastructure services bill from AWS global servers for $5,000. The local tax framework dictates a reverse-charge 12% Input VAT calculation and demands a 5% vendor Withholding Tax on the purchase transaction.",
+    amount: 5000,
+    type: "expense",
+    solution: {
+      debits: [
+        { account: "Rent Expense", amount: 5000 },
+        { account: "Input VAT", amount: 600 }
+      ],
+      credits: [
+        { account: "Accounts Payable", amount: 5350 },
+        { account: "Withholding Tax Payable", amount: 250 }
+      ]
+    },
+    boss: { name: "Tax Haven Phantom", emoji: "👻", hp: 180 },
+    difficulty: 5
+  },
+  {
+    id: "GT003",
+    date: "Feb 28",
+    sourceDoc: { type: "Global Payroll Register", number: "GPR-FEB-26", description: "Multi-country salary run execution" },
+    description: "Processed monthly global salaries. Total gross payroll is calculated at $12,000. Deductions calculate out to $1,500 for withholding income taxes payable to international agencies, leaving the remainder due as Net Payroll Payable to staff.",
+    amount: 12000,
+    type: "expense",
+    solution: {
+      debits: [
+        { account: "Salaries Expense", amount: 12000 }
+      ],
+      credits: [
+        { account: "Withholding Tax Payable", amount: 1500 },
+        { account: "Payroll Payable", amount: 10500 }
+      ]
+    },
+    boss: { name: "Sovereign Compliance Dragon", emoji: "🐉", hp: 220 },
+    difficulty: 5
+  },
+  {
+    id: "GT004",
+    date: "Mar 05",
+    sourceDoc: { type: "Bank Settle Slip", number: "FX-9921", description: "Settlement of accounts receivable in EUR" },
+    description: "Settled a foreign client account originally valued at $4,000 in foreign exchange currency. Due to rapid market macro fluctuations at currency execution time, we received exactly $4,250 in cash into our operating accounts.",
+    amount: 4250,
+    type: "revenue",
+    solution: {
+      debits: [
+        { account: "Cash", amount: 4250 }
+      ],
+      credits: [
+        { account: "Accounts Receivable", amount: 4000 },
+        { account: "Forex Gain", amount: 250 }
+      ]
+    },
+    boss: { name: "Forex Volatility Leviathan", emoji: "📈", hp: 250 },
+    difficulty: 5
+  }
+];
+
+G.isInfiniteMode = false;
+G.infiniteCycleCounter = 1;
+
+
 // ================================================================
 // MINI AUDIT TRAIL POPUP after each journal entry
 // ================================================================
@@ -1641,7 +1737,7 @@ function renderLedger(){
         const normalDr = ['asset','expense'].includes(data.type);
         const bal = normalDr ? totalDr-totalCr : totalCr-totalDr;
         const balSide = normalDr?'Dr':'Cr';
-        const hasEntries = data.debit.length>0||data.credit.length>1;
+        const hasEntries = data.debit.length>0||data.credit.length>0;
         return `
         <div class="t-account ${hasEntries?'highlighted':''}">
           <div class="t-header">
@@ -1987,6 +2083,176 @@ function stageAdjustedTB(){
     </div>
   `;
 }
+
+function openCompoundTransaction() {
+  const tx = G.currentTx;
+  if (!tx) return;
+  const accountsList = Object.keys(G.ledger);
+  showPanel('journalPanel');
+  const panel = document.getElementById('journalPanel');
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-icon">📝</div>
+      <div>
+        <div class="panel-title">Compound Journal Entry Builder</div>
+        <div class="panel-subtitle">Transaction Ref: ${tx.id}</div>
+      </div>
+    </div>
+    <div class="info-box">
+      <strong>Event Description:</strong> ${tx.description}
+    </div>
+    <div class="je-builder">
+      <div class="je-title">⚔️ Formulate the Multi-Line Balance Sheet Defense</div>
+      <table class="je-table" id="compoundJeTable">
+        <thead>
+          <tr>
+            <th width="100">Type</th>
+            <th>Account</th>
+            <th width="150">Debit ($)</th>
+            <th width="150">Credit ($)</th>
+            <th width="60">Action</th>
+          </tr>
+        </thead>
+        <tbody id="jeLinesBody">
+          ${renderJeInputRow(accountsList)}
+        </tbody>
+      </table>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:10px;">
+        <button class="rpg-btn secondary" onclick="addJeRow()">➕ Add Accounting Line</button>
+      </div>
+      <div class="je-balance">
+        <div class="je-bal-item"><div class="je-bal-val" id="jeDrTotal" style="color:var(--accent-blue);">$0</div><div class="je-bal-lbl">Total Debits</div></div>
+        <div style="font-size:1.5rem;color:var(--text-dim);display:flex;align-items:center;">⚖️</div>
+        <div class="je-bal-item"><div class="je-bal-val" id="jeCrTotal" style="color:var(--accent-purple);">$0</div><div class="je-bal-lbl">Total Credits</div></div>
+      </div>
+      <button class="je-submit" id="submitJeBtn" onclick="validateCompoundJE()" disabled>🔮 CAST JOURNAL SPELL</button>
+    </div>
+  `;
+  updateCompoundTotals();
+}
+
+function validateCompoundJE() {
+  const tx = G.currentTx;
+  if (!tx || !tx.solution) return;
+
+  let playerDebits = [], playerCredits = [];
+  document.querySelectorAll('.je-input-row').forEach(row => {
+    const account = row.querySelector('.row-account').value;
+    const type    = row.querySelector('.row-type').value;
+    const drAmt   = parseFloat(row.querySelector('.row-dr-amt').value) || 0;
+    const crAmt   = parseFloat(row.querySelector('.row-cr-amt').value) || 0;
+    const amount  = type === 'DR' ? drAmt : crAmt;
+    if (amount > 0 && account) {
+      if (type === 'DR') playerDebits.push({ account, amount });
+      else               playerCredits.push({ account, amount });
+    }
+  });
+
+  const matchArray = (playerArr, solutionArr) => {
+    if (playerArr.length !== solutionArr.length) return false;
+    return solutionArr.every(sol =>
+      playerArr.some(p => p.account === sol.account && p.amount === sol.amount)
+    );
+  };
+
+  const isCorrect = matchArray(playerDebits, tx.solution.debits) &&
+                    matchArray(playerCredits, tx.solution.credits);
+
+  G.totalAnswered++;
+  if (isCorrect) {
+    G.totalCorrect++;
+    G.streak++;
+    if (G.streak > G.bestStreak) G.bestStreak = G.streak;
+    const cfg      = DIFF_CONFIG[G.diff];
+    const xpEarned = Math.floor((120 + G.streak * 15) * cfg.mult);
+    G.xp    += xpEarned;
+    G.gold  += Math.floor(xpEarned / 10);
+    G.score += xpEarned * 10;
+    updateHUD();
+
+    playerDebits.forEach(d => {
+      if (G.ledger[d.account]) G.ledger[d.account].debit.push({ ref: tx.id, amt: d.amount });
+    });
+    playerCredits.forEach(c => {
+      if (G.ledger[c.account]) G.ledger[c.account].credit.push({ ref: tx.id, amt: c.amount });
+    });
+
+    toast(`✨ CRITICAL HIT! Compound Entry Correct! +${xpEarned}XP +${Math.floor(xpEarned/10)}💰`, 'success');
+
+    if (G.isInfiniteMode) {
+      setTimeout(() => triggerNextInfiniteEncounter(), 1500);
+    } else {
+      G.journaledTx.push(tx);
+      setTimeout(() => showMiniAuditTrail(tx), 1200);
+    }
+  } else {
+    G.streak = 0;
+    G.playerHP = Math.max(0, G.playerHP - 20);
+    updateHUD();
+    showBattleAnimation('enemy', 20);
+    toast('💥 REFLECTION BACKLASH! Accounting equation is out of compliance.', 'error');
+    if (G.playerHP <= 0) setTimeout(() => showDefeat(), 1000);
+  }
+}
+
+function renderJeInputRow(accountsList) {
+  return `
+    <tr class="je-input-row">
+      <td>
+        <select class="je-input row-type" onchange="updateCompoundTotals()">
+          <option value="DR">Debit (Dr)</option>
+          <option value="CR">Credit (Cr)</option>
+        </select>
+      </td>
+      <td>
+        <select class="je-input row-account">
+          <option value="">— Select Account —</option>
+          ${accountsList.map(a => `<option value="${a}">${a}</option>`).join('')}
+        </select>
+      </td>
+      <td><input class="je-input row-dr-amt" type="number" value="0" min="0" oninput="updateCompoundTotals()"></td>
+      <td><input class="je-input row-cr-amt" type="number" value="0" min="0" oninput="updateCompoundTotals()" disabled></td>
+      <td><button class="rpg-btn danger" onclick="this.closest('tr').remove(); updateCompoundTotals();" style="padding:4px 8px;">❌</button></td>
+    </tr>
+  `;
+}
+
+function addJeRow() {
+  const accountsList = Object.keys(G.ledger);
+  document.getElementById('jeLinesBody').insertAdjacentHTML('beforeend', renderJeInputRow(accountsList));
+  updateCompoundTotals();
+}
+
+function updateCompoundTotals() {
+  let totalDr = 0;
+  let totalCr = 0;
+
+  document.querySelectorAll('.je-input-row').forEach(row => {
+    const type = row.querySelector('.row-type').value;
+    const drInput = row.querySelector('.row-dr-amt');
+    const crInput = row.querySelector('.row-cr-amt');
+
+    if (type === 'DR') {
+      drInput.disabled = false;
+      crInput.disabled = true;
+      crInput.value = 0;
+      totalDr += parseFloat(drInput.value) || 0;
+    } else {
+      drInput.disabled = true;
+      crInput.disabled = false;
+      drInput.value = 0;
+      totalCr += parseFloat(crInput.value) || 0;
+    }
+  });
+
+  document.getElementById('jeDrTotal').textContent = `$${totalDr.toLocaleString()}`;
+  document.getElementById('jeCrTotal').textContent = `$${totalCr.toLocaleString()}`;
+  
+  const submitBtn = document.getElementById('submitJeBtn');
+  // Enable spell execution only if debits equal credits, and are above 0
+  submitBtn.disabled = !(totalDr === totalCr && totalDr > 0);
+}
+   
 
 // ================================================================
 // STAGE 6 — FINANCIAL STATEMENTS
@@ -2506,28 +2772,105 @@ function closeDialogue(){
 // ================================================================
 // STAGE COMPLETION
 // ================================================================
-function completeStage(stageId){
-  if(!G.completedStages.includes(stageId)){
-    G.completedStages.push(stageId);
+function completeStage(stageId) {
+  if (G.completedStages.includes(stageId)) return;
+  G.completedStages.push(stageId);
+  if (stageId + 1 < STAGES.length) {
+    STAGES[stageId + 1].unlocked = true;
   }
-
-  // Unlock next stage
-  if(stageId+1 < STAGES.length){
-    STAGES[stageId+1].unlocked = true;
-  }
-
-  const xpReward = (stageId+1)*150;
-  const goldReward = (stageId+1)*10;
-  G.xp += xpReward;
-  G.gold += goldReward;
-  G.score += xpReward*10;
+  const xpReward = (stageId + 1) * 150;
+  G.xp    += xpReward;
+  G.score += xpReward * 10;
+  G.gold  += Math.floor(xpReward / 5);
   updateHUD();
   updateCycleTracker();
-  toast(`🏆 Stage ${stageId+1} Complete! +${xpReward}XP +${goldReward}💰`,'gold');
-
-  // Show result screen
-  showStageResult(stageId);
+  if (stageId === 7) {
+    showDialogue(
+      "👑", "Global CFO Ultimate Ascension",
+      "Congratulations! You completed the base compliance pipeline. Retire to the boardroom, or launch Infinite Growth Mode to battle volatile global markets?",
+      [
+        { text: "⚔️ Enter Infinite Market Loop", fn: () => startInfiniteGlobalMode() },
+        { text: "🏆 Retire to Title Screen",      fn: () => goTitle() }
+      ]
+    );
+  } else {
+    showStageResult(stageId);
+  }
 }
+
+function startInfiniteGlobalMode() {
+  G.isInfiniteMode = true;
+  document.getElementById('cycleTracker').style.display = 'none'; // Hide fixed linear progression bar
+  triggerNextInfiniteEncounter();
+}
+
+function triggerNextInfiniteEncounter() {
+  const baseValue      = Math.floor(Math.random() * 8 + 1) * 2500;
+  const vatRate        = 0.10;
+  const withholdingRate = 0.02;
+
+  const templates = [
+    {
+      description: `Dispatched an international cross-border consulting invoice for $${baseValue.toLocaleString()}. Apply 10% Output VAT and factor in a 2% client-side Creditable Withholding Tax.`,
+      build: (val) => {
+        const vat = val * vatRate;
+        const wht = val * withholdingRate;
+        return {
+          debits:  [{ account: "Accounts Receivable",        amount: val + vat - wht },
+                    { account: "Creditable Withholding Tax", amount: wht }],
+          credits: [{ account: "Service Revenue", amount: val },
+                    { account: "Output VAT",      amount: vat }]
+        };
+      },
+      bossEmoji: "🤖",
+      bossName: `Automated Auditor v${G.infiniteCycleCounter}`
+    },
+    {
+      description: `Procured server infrastructure for $${baseValue.toLocaleString()} on credit. Triggers 10% Input VAT and a 5% Withholding Tax Payable on remittance.`,
+      build: (val) => {
+        const vat = val * 0.10;
+        const wht = val * 0.05;
+        return {
+          debits:  [{ account: "Equipment",  amount: val },
+                    { account: "Input VAT",  amount: vat }],
+          credits: [{ account: "Accounts Payable",       amount: val + vat - wht },
+                    { account: "Withholding Tax Payable", amount: wht }]
+        };
+      },
+      bossEmoji: "👹",
+      bossName: `Supply-Chain Golem Mk.${G.infiniteCycleCounter}`
+    }
+  ];
+
+  const template       = templates[Math.floor(Math.random() * templates.length)];
+  const solutionEntries = template.build(baseValue);
+
+  G.currentTx = {
+    id:         `INF-${100 + G.infiniteCycleCounter}`,
+    date:       "Continuous",
+    sourceDoc:  { type: "Dynamic Global Ledger Entry", number: `FX-INF-${G.infiniteCycleCounter}`, description: "Procedural Cross-Border Event" },
+    description: template.description,
+    amount:     baseValue,
+    type:       "global",
+    solution:   solutionEntries,
+    boss: {
+      name:  template.bossName,
+      emoji: template.bossEmoji,
+      hp:    150 + (G.infiniteCycleCounter * 25)
+    }
+  };
+
+  G.infiniteCycleCounter++;
+
+  logAction(`⚠️ INCOMING MARKET ANOMALY: Level ${G.infiniteCycleCounter - 1} Boss has emerged!`, 'neutral');
+
+  showBattleScene();
+  document.getElementById('enemyName').textContent = G.currentTx.boss.name;
+  document.getElementById('enemyChar').textContent = G.currentTx.boss.emoji;
+  setEnemyHP(G.currentTx.boss.hp, G.currentTx.boss.hp);
+  setTimeout(() => openCompoundTransaction(), 500);
+}
+   
 
 function showStageResult(stageId){
   const stage = STAGES[stageId];
