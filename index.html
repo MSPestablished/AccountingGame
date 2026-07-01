@@ -1028,6 +1028,9 @@ function startGame(){
   G.ledger = initLedger();
   G.txIndex=0;
   G.totalAnswered=0; G.totalCorrect=0;
+  G.netIncome=0;                  // ← ADD
+  G.isInfiniteMode=false;         // ← ADD
+  G.infiniteCycleCounter=1;       // ← ADD
 
   // Unlock first stage
   STAGES[0].unlocked = true;
